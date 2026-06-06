@@ -1,0 +1,1868 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>包材庫存與智慧補貨檢視系統</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- SheetJS (XLSX) 用於直接解析 Excel 檔案 -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght=300;400;500;700&display=swap');
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen text-slate-800 flex flex-col">
+
+    <!-- 導航欄 -->
+    <header class="bg-emerald-600 text-white shadow-md">
+        <div class="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex items-center space-x-3">
+                <i data-lucide="box" class="w-8 h-8 text-emerald-200"></i>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight">包材智慧補貨檢視系統</h1>
+                    <div class="flex flex-wrap items-center gap-2 mt-1">
+                        <span class="text-xs text-emerald-100">包材專屬客製化模式 • 智慧模糊單位匹配</span>
+                        <span class="text-[10px] bg-emerald-700 text-emerald-100 px-2 py-0.5 rounded-full">特定五倉比對模式 (綠園二廠雙倉 ➔ 三大後援倉)</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 右側即時日期時間顯示與分頁切換 -->
+            <div class="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto justify-end">
+                <!-- 動態時間顯示區 -->
+                <div class="bg-emerald-700/40 px-4 py-2 rounded-xl border border-emerald-500/30 flex items-center space-x-2 text-sm font-medium shrink-0">
+                    <i data-lucide="clock" class="w-4 h-4 text-emerald-200 animate-pulse"></i>
+                    <span id="liveClock" class="font-mono tracking-wider text-emerald-50">載入時間中...</span>
+                </div>
+
+                <!-- 分頁切換按鈕 -->
+                <div class="bg-emerald-700/60 p-1.5 rounded-xl flex space-x-1 border border-emerald-500/30 shrink-0">
+                    <button id="tabInventory" class="px-4 py-1.5 rounded-lg text-sm font-semibold bg-white text-emerald-800 shadow-sm transition-all flex items-center">
+                        <i data-lucide="layout-dashboard" class="w-4 h-4 mr-1.5"></i>
+                        庫存檢視比對
+                    </button>
+                    <button id="tabSettings" class="px-4 py-1.5 rounded-lg text-sm font-semibold text-emerald-100 hover:text-white hover:bg-emerald-600/50 transition-all flex items-center">
+                        <i data-lucide="sliders" class="w-4 h-4 mr-1.5"></i>
+                        補貨標準管理
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-grow max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8 w-full">
+        
+        <!-- 分頁一：庫存檢視比對 -->
+        <section id="sectInventory" class="space-y-6">
+            
+            <!-- 說明與上傳區 -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                
+                <!-- 規則說明卡片 -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-between">
+                    <div>
+                        <h3 class="text-base font-bold text-slate-900 mb-3 flex items-center">
+                            <i data-lucide="info" class="w-5 h-5 text-emerald-500 mr-2"></i>
+                            系統比對機制 (限定五倉)
+                        </h3>
+                        <ul class="space-y-2.5 text-sm text-slate-600">
+                            <li class="flex items-start">
+                                <span class="text-emerald-500 mr-1.5">•</span>
+                                <span><b>生產倉主動監控：</b>系統會加總 <b>綠園二廠/包材倉</b> 與 <b>綠園二廠/常溫區</b> 的庫存量與補貨標準比對。</span>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="text-emerald-500 mr-1.5">•</span>
+                                <span><b>內場補貨判定：</b>當生產倉不足，但後援倉（車棚1/車棚2/63-5常溫）有貨，會亮<b>紅底</b>提示內場補貨。</span>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="text-emerald-500 mr-1.5">•</span>
+                                <span><b>緊急採購判定：</b>若生產倉不足，且所有後援倉都完全沒貨，則會亮<b>紫底</b>提示需通知採購！</span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- 上傳/同步區域 -->
+                <div class="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    
+                    <!-- 檔案手動拖曳上傳 -->
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-between">
+                        <div class="mb-3">
+                            <h4 class="text-xs font-bold text-slate-500 flex items-center">
+                                <i data-lucide="file-spreadsheet" class="w-4 h-4 mr-1"></i>
+                                方案 A：手動上傳報表
+                            </h4>
+                        </div>
+                        <div id="dropZone" class="border-2 border-dashed border-slate-200 hover:border-emerald-400 rounded-xl p-6 text-center cursor-pointer transition-colors group flex-grow flex flex-col justify-center items-center">
+                            <input type="file" id="fileInput" accept=".xlsx, .xls, .csv" class="hidden">
+                            <div class="p-2.5 bg-emerald-50 rounded-full text-emerald-500 group-hover:scale-110 transition-transform mb-2">
+                                <i data-lucide="upload-cloud" class="w-6 h-6"></i>
+                            </div>
+                            <p class="text-xs font-semibold text-slate-700">拖曳或點選上傳 Excel / CSV</p>
+                        </div>
+                    </div>
+
+                    <!-- 雲端一鍵同步 -->
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-between">
+                        <div class="mb-2">
+                            <h4 class="text-xs font-bold text-emerald-600 flex items-center">
+                                <i data-lucide="globe" class="w-4 h-4 mr-1 text-emerald-500"></i>
+                                方案 B：一鍵連線 Google Sheet / ERP
+                            </h4>
+                        </div>
+                        <div class="space-y-3 flex-grow flex flex-col justify-center">
+                            <!-- 同步按鈕 -->
+                            <button id="btnSyncCloud" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 px-4 rounded-xl text-sm transition-all shadow-md flex items-center justify-center space-x-2 group">
+                                <i data-lucide="refresh-cw" class="w-4 h-4 group-hover:rotate-180 transition-transform duration-500"></i>
+                                <span>一鍵讀取系統結餘</span>
+                            </button>
+                            
+                            <!-- Google Sheet 網址設定 -->
+                            <div>
+                                <label class="block text-[10px] font-bold text-slate-400 mb-1">貼上 Google Sheet 的 CSV 網址：</label>
+                                <input type="url" id="cloudUrlInput" placeholder="https://docs.google.com/spreadsheets/d/.../pub?output=csv" class="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-[11px] font-mono focus:ring-1 focus:ring-emerald-500 focus:outline-none placeholder-slate-400 bg-slate-50">
+                                <p class="text-[9px] text-slate-400 mt-1 leading-normal">
+                                    提示：請將試算表「發佈到網路」格式設為「CSV」並複製網址。貼上後網頁會自動記住，免重複貼。
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+
+            <!-- 數據統計區 (預設隱藏) -->
+            <div id="statsContainer" class="hidden grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div class="bg-white p-3.5 rounded-xl shadow-sm border border-slate-100 flex items-center space-x-3">
+                    <div class="p-2 bg-blue-50 text-blue-500 rounded-lg">
+                        <i data-lucide="database" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <div class="text-[11px] text-slate-400 font-medium">總筆數</div>
+                        <div id="statTotal" class="text-xl font-bold text-slate-800">-</div>
+                    </div>
+                </div>
+                <div class="bg-white p-3.5 rounded-xl shadow-sm border border-slate-100 flex items-center space-x-3">
+                    <div class="p-2 bg-slate-50 text-slate-500 rounded-lg">
+                        <i data-lucide="tag" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <div class="text-[11px] text-slate-400 font-medium">總品項數</div>
+                        <div id="statItems" class="text-xl font-bold text-slate-800">-</div>
+                    </div>
+                </div>
+                <div class="bg-white p-3.5 rounded-xl shadow-sm border border-slate-100 flex items-center space-x-3">
+                    <div class="p-2 bg-rose-50 text-rose-500 rounded-lg">
+                        <i data-lucide="bell" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <div class="text-[11px] text-slate-400 font-medium">內場需補貨</div>
+                        <div id="statReplenish" class="text-xl font-bold text-rose-600">-</div>
+                    </div>
+                </div>
+                <div class="bg-white p-3.5 rounded-xl shadow-sm border border-purple-200 flex items-center space-x-3 ring-1 ring-purple-500/20 shadow-purple-500/10">
+                    <div class="p-2 bg-purple-100 text-purple-600 rounded-lg">
+                        <i data-lucide="shopping-cart" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <div class="text-[11px] text-purple-600 font-bold">缺貨需採購</div>
+                        <div id="statPurchase" class="text-xl font-black text-purple-700">-</div>
+                    </div>
+                </div>
+                <div class="bg-white p-3.5 rounded-xl shadow-sm border border-slate-100 flex items-center space-x-3">
+                    <div class="p-2 bg-amber-50 text-amber-500 rounded-lg">
+                        <i data-lucide="alert-circle" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <div class="text-[11px] text-slate-400 font-medium">未設定標準</div>
+                        <div id="statNoStandard" class="text-xl font-bold text-amber-600">-</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 功能與過濾操作區 (預設隱藏) -->
+            <div id="filterContainer" class="hidden bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div class="flex flex-wrap gap-2 items-center">
+                    <button id="btnAll" class="px-4 py-2 rounded-lg text-sm font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors">
+                        全五倉資料
+                    </button>
+                    <button id="btnReplenishOnly" class="px-4 py-2 rounded-lg text-sm font-semibold bg-slate-100 text-rose-600 hover:bg-rose-50 transition-colors flex items-center">
+                        <span class="w-2 h-2 rounded-full bg-white mr-2"></span>
+                        內場需補貨 (<span id="btnReplenishCount">0</span>)
+                    </button>
+                    <button id="btnPurchaseOnly" class="px-4 py-2 rounded-lg text-sm font-semibold bg-slate-100 text-purple-700 hover:bg-purple-100 transition-colors flex items-center">
+                        <span class="w-2 h-2 rounded-full bg-purple-500 mr-2"></span>
+                        缺貨需採購 (<span id="btnPurchaseCount">0</span>)
+                    </button>
+                    <button id="btnNoStdOnly" class="px-4 py-2 rounded-lg text-sm font-semibold bg-slate-100 text-amber-700 hover:bg-amber-50 transition-colors flex items-center">
+                        <span class="w-2 h-2 rounded-full bg-amber-500 mr-2"></span>
+                        未設定標準 (<span id="btnNoStdCount">0</span>)
+                    </button>
+                </div>
+                <div class="relative w-full md:w-72">
+                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400">
+                        <i data-lucide="search" class="w-4 h-4"></i>
+                    </span>
+                    <input type="text" id="searchInput" placeholder="搜尋品項代號或名稱..." class="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
+                </div>
+            </div>
+
+            <!-- 檔案加載狀態 -->
+            <div id="loadingStatus" class="hidden text-center py-12">
+                <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-emerald-500 border-t-transparent mb-4"></div>
+                <p id="loadingStatusText" class="text-slate-500 text-sm">正在套用內建包材補貨標準並計算補貨狀態...</p>
+            </div>
+
+            <!-- 全能安全庫存大看板 -->
+            <div id="allSafeCelebration" class="hidden bg-gradient-to-br from-emerald-500 to-teal-600 rounded-3xl p-12 text-center text-white shadow-xl max-w-4xl mx-auto flex flex-col items-center justify-center space-y-6 transform hover:scale-[1.01] transition-transform duration-300">
+                <div class="p-6 bg-white/20 rounded-full animate-bounce">
+                    <i data-lucide="shield-check" class="w-20 h-20 text-white"></i>
+                </div>
+                <div class="space-y-2">
+                    <h2 class="text-4xl md:text-5xl font-black tracking-wider leading-tight drop-shadow-md">
+                        恭喜你，包材在庫充足，無需補貨
+                    </h2>
+                    <p class="text-emerald-100 text-base md:text-lg font-medium">
+                        綠園二廠包材庫存水位正常，後援車棚倉庫群安全儲備中！🎉
+                    </p>
+                    <p class="text-[14px] text-emerald-200/90 font-mono bg-emerald-800/40 px-4 py-2 rounded-full border border-emerald-500/20 inline-block">
+                        系統核對時間：<span id="celebrationTime" class="font-bold">載入中...</span>
+                    </p>
+                </div>
+                <div class="pt-2">
+                    <button onclick="window.switchFilterToAll()" class="px-6 py-2.5 bg-white/10 hover:bg-white/20 active:bg-white/30 border border-white/20 rounded-xl text-sm font-semibold transition-all flex items-center space-x-1.5 mx-auto">
+                        <i data-lucide="eye" class="w-4 h-4"></i>
+                        <span>查看限定五倉全部資料</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 主要表格呈現區 (預設隱藏) -->
+            <div id="tableContainer" class="hidden bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-slate-50 border-b border-slate-100 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                                <th class="px-6 py-4">品類</th>
+                                <th class="px-6 py-4">品項代號</th>
+                                <th class="px-6 py-4">品項名稱</th>
+                                <th class="px-6 py-4">庫存單位</th>
+                                <th class="px-6 py-4">倉庫</th>
+                                <th class="px-6 py-4 text-right">庫存數量</th>
+                                <th class="px-6 py-4 text-right">最低庫存量</th>
+                                <th class="px-6 py-4 text-center">狀態說明 / 補貨後援</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableBody" class="divide-y divide-slate-100 text-sm">
+                            <!-- 動態插入 -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- 資訊欄 -->
+                <div class="px-6 py-4 bg-slate-50 border-t border-slate-100 text-xs text-slate-400 flex flex-col sm:flex-row justify-between items-center gap-2">
+                    <div id="dataSourceTag">* 數據載入來源: 尚未加載</div>
+                    <div class="flex items-center space-x-4">
+                        <div class="flex items-center space-x-1">
+                            <span class="w-3 h-3 bg-rose-100 border border-rose-300 rounded"></span>
+                            <span>紅色：內場需補貨 (車棚/63-5常溫 有貨)</span>
+                        </div>
+                        <div class="flex items-center space-x-1">
+                            <span class="w-3 h-3 bg-purple-100 border border-purple-300 rounded"></span>
+                            <span class="font-bold text-purple-600">紫色：缺貨需採購 (全倉皆空)</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 初始無資料畫面 -->
+            <div id="emptyState" class="bg-white rounded-2xl border-2 border-dashed border-slate-200 py-16 px-4 text-center">
+                <div class="max-w-md mx-auto flex flex-col items-center">
+                    <div class="p-4 bg-slate-50 rounded-full text-slate-400 mb-4">
+                        <i data-lucide="file-spreadsheet" class="w-12 h-12"></i>
+                    </div>
+                    <h3 class="text-base font-semibold text-slate-950 mb-1">尚未載入包材庫存數據</h3>
+                    <p class="text-xs text-slate-500 mb-6">請在左側手動上傳報表，或者在右側設定好 Google Sheet CSV 網址後點選一鍵同步。</p>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- 分頁二：補貨標準管理中心 -->
+        <section id="sectSettings" class="hidden space-y-6 animate-fadeIn">
+            
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                
+                <!-- 新增/編輯補貨標準 Form -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 h-fit space-y-4">
+                    <div class="flex justify-between items-center">
+                        <h3 class="text-base font-bold text-slate-950 flex items-center">
+                            <i data-lucide="file-edit" class="w-5 h-5 mr-2 text-emerald-500"></i>
+                            <span id="formTitle">新增/修改補貨標準</span>
+                        </h3>
+                        <!-- 快速上鎖按鈕 -->
+                        <button id="btnLockSettings" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold px-2 py-1.5 rounded-lg flex items-center border border-slate-200 shadow-sm transition-all">
+                            <i data-lucide="lock" class="w-3.5 h-3.5 mr-1 text-slate-500"></i>鎖定並登出
+                        </button>
+                    </div>
+                    <form id="stdForm" class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-500 mb-1">品項代號 (必填)</label>
+                            <input type="text" id="formItemCode" required placeholder="例如：Z01001" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-500 mb-1">單位 (建議留空以模糊對應所有包裝細節)</label>
+                            <input type="text" id="formUnit" placeholder="例如：張 (留空代表通用)" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-500 mb-1">品項名稱 (選填)</label>
+                            <input type="text" id="formItemName" placeholder="例如：珠光空白貼紙30x20" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-500 mb-1">最低庫存量 (必填)</label>
+                            <input type="number" id="formRefill" required min="0" step="any" placeholder="例如：4000" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        </div>
+                        <div class="flex space-x-2 pt-2">
+                            <button type="submit" class="flex-grow bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 rounded-lg text-sm transition-colors shadow-sm">
+                                儲存設定
+                            </button>
+                            <button type="button" id="btnResetForm" class="bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold px-4 py-2 rounded-lg text-sm transition-colors">
+                                清除
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- 批次與管理卡片 -->
+                <div class="lg:col-span-2 space-y-6">
+                    
+                    <!-- 跨電腦標準移轉 -->
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="space-y-2">
+                            <h3 class="text-sm font-bold text-slate-950 flex items-center">
+                                <i data-lucide="cloud-lightning" class="w-4 h-4 text-emerald-500 mr-1.5"></i>
+                                包材備份與移轉 (免重複上傳)
+                            </h3>
+                            <p class="text-xs text-slate-500 leading-relaxed">
+                                您可以將目前這台電腦設定好的所有包材標準匯出為一個極小的 <b>.json 備份檔</b>。帶去別台電腦一秒匯入，免重複輸入！
+                            </p>
+                        </div>
+                        <div class="flex flex-col gap-2 justify-center items-center md:items-end">
+                            <div class="flex flex-wrap gap-2 justify-end">
+                                <button id="btnExportBackup" class="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-semibold px-3 py-2 rounded-lg text-xs transition-colors border border-emerald-200 flex items-center space-x-1">
+                                    <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                                    <span>匯出標準備份 (.json)</span>
+                                </button>
+                                <button id="btnTriggerImportBackup" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-3 py-2 rounded-lg text-xs transition-colors border border-slate-200 flex items-center space-x-1">
+                                    <i data-lucide="upload" class="w-3.5 h-3.5"></i>
+                                    <span>匯入標準備份</span>
+                                </button>
+                            </div>
+                            <input type="file" id="backupFileInput" accept=".json" class="hidden">
+                            <p class="text-[10px] text-slate-400">標準備份檔不包含庫存，純粹移轉「補貨臨界值」</p>
+                        </div>
+                    </div>
+
+                    <!-- 批次匯入與重置 -->
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="space-y-2">
+                            <h3 class="text-sm font-bold text-slate-950 flex items-center">
+                                <i data-lucide="refresh-cw" class="w-4 h-4 text-emerald-500 mr-1.5"></i>
+                                批次匯入與程式重置
+                            </h3>
+                            <p class="text-xs text-slate-500 leading-relaxed">
+                                <b>標準重設：</b>如果您修改了程式碼 DEFAULT_STANDARDS 後，發現標準未更新，點擊右邊一鍵重設，即可清除快取並同步最新標準。
+                            </p>
+                        </div>
+                        <div class="flex flex-col gap-2 justify-center items-center md:items-end">
+                            <div class="flex flex-wrap gap-2 justify-end">
+                                <button id="btnResetToDefaults" class="bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold px-3.5 py-2.5 rounded-xl text-xs transition-colors border border-rose-200 flex items-center space-x-1">
+                                    <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+                                    <span>重置為包材預設標準</span>
+                                </button>
+                                <button id="btnImportStd" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-2.5 rounded-xl text-sm transition-colors shadow-sm flex items-center space-x-1.5">
+                                    <i data-lucide="import" class="w-4 h-4"></i>
+                                    <span>上傳舊檔自動學習</span>
+                                </button>
+                            </div>
+                            <input type="file" id="importStdFile" accept=".xlsx, .xls, .csv" class="hidden">
+                            <p class="text-[10px] text-slate-400">將根據「代號 + 單位」建立客製化補貨標準</p>
+                        </div>
+                    </div>
+
+                    <!-- 內建標準列表 -->
+                    <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                        <div class="p-4 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-3">
+                            <div>
+                                <h3 class="text-sm font-bold text-slate-900">目前已設定的包材最低標準</h3>
+                                <p class="text-xs text-slate-400 mt-0.5">共有 <span id="stdCountText" class="font-bold text-emerald-600">0</span> 個品項設定 (以 Z碼代號 + 單位 比對)</p>
+                            </div>
+                            <div class="flex gap-2 w-full sm:w-auto">
+                                <input type="text" id="searchStdInput" placeholder="快速搜尋代號/單位/品項..." class="px-3 py-1.5 border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-none w-full sm:w-48">
+                                <button id="btnClearAllStds" class="bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center shrink-0">
+                                    <i data-lucide="trash-2" class="w-3.5 h-3.5 mr-1"></i> 全部清空
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 列表表格 -->
+                        <div class="max-h-96 overflow-y-auto">
+                            <table class="w-full text-left text-xs border-collapse">
+                                <thead class="bg-slate-50 sticky top-0 border-b border-slate-100 font-semibold text-slate-500">
+                                    <tr>
+                                        <th class="px-6 py-3">品項代號</th>
+                                        <th class="px-6 py-3">庫存單位</th>
+                                        <th class="px-6 py-3">品項名稱</th>
+                                        <th class="px-6 py-3 text-right">最低庫存量</th>
+                                        <th class="px-6 py-3 text-center">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="stdTableBody" class="divide-y divide-slate-100">
+                                    <!-- 動態生成 -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+    </main>
+
+    <!-- 密碼保護輸入彈窗 (Modal) -->
+    <div id="passwordModal" class="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center z-50 opacity-0 pointer-events-none transition-opacity duration-300">
+        <div class="bg-white rounded-2xl shadow-xl border border-slate-150 p-6 max-w-sm w-full mx-4 transform scale-95 transition-transform duration-300" id="passwordModalCard">
+            <div class="flex flex-col items-center text-center">
+                <div class="p-3 bg-emerald-50 text-emerald-600 rounded-full mb-3">
+                    <i data-lucide="lock" class="w-8 h-8"></i>
+                </div>
+                <h3 class="text-lg font-bold text-slate-900 mb-1">分頁安全驗證</h3>
+                <p class="text-xs text-slate-500 mb-5">「補貨標準管理」為保護區域，請輸入管理密碼：</p>
+                
+                <form id="passwordForm" class="w-full space-y-4">
+                    <div>
+                        <input type="password" id="inputSettingsPassword" required placeholder="請輸入密碼" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-center font-mono tracking-widest text-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none">
+                        <p id="passwordErrorMsg" class="text-xs text-rose-500 font-medium mt-1.5 hidden">❌ 密碼錯誤，請重新輸入！</p>
+                    </div>
+                    <div class="flex space-x-2 pt-2">
+                        <button type="button" id="btnCancelPassword" class="w-1/2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold py-2.5 rounded-xl text-sm transition-colors">
+                            取消
+                        </button>
+                        <button type="submit" class="w-1/2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 rounded-xl text-sm transition-colors shadow-sm">
+                            驗證登入
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- 通知提示元件 -->
+    <div id="toast" class="fixed bottom-5 right-5 bg-slate-900 text-white px-5 py-3 rounded-lg shadow-lg text-sm flex items-center space-x-2 translate-y-20 opacity-0 transition-all duration-300 pointer-events-none z-50">
+        <i id="toastIcon" data-lucide="info" class="w-5 h-5"></i>
+        <span id="toastMessage">這是提示訊息</span>
+    </div>
+
+    <!-- 💡 唯一聚合 JavaScript 控制區 -->
+    <script>
+        // ==========================================
+        // 2. 核心底層與資料處理函數 (置頂宣告，防止 TDZ)
+        // ==========================================
+        function initClock() {
+            function updateClock() {
+                const clockEl = document.getElementById('liveClock');
+                const celebrationTimeEl = document.getElementById('celebrationTime'); 
+                
+                if (!clockEl && !celebrationTimeEl) return;
+
+                const now = new Date();
+                const year = now.getFullYear();
+                const month = String(now.getMonth() + 1).padStart(2, '0');
+                const date = String(now.getDate()).padStart(2, '0');
+                const hours = String(now.getHours()).padStart(2, '0');
+                const minutes = String(now.getMinutes()).padStart(2, '0');
+                const seconds = String(now.getSeconds()).padStart(2, '0');
+                const days = ['日', '一', '二', '三', '四', '五', '六'];
+                const dayOfWeek = days[now.getDay()];
+                
+                const timeStr = `${year}/${month}/${date} (星期${dayOfWeek}) ${hours}:${minutes}:${seconds}`;
+                if (clockEl) clockEl.textContent = timeStr;
+                if (celebrationTimeEl) celebrationTimeEl.textContent = timeStr;
+            }
+            
+            updateClock();
+            setInterval(updateClock, 1000);
+        }
+
+        function cleanFloat(val) {
+            if (val === undefined || val === null || val === '') return null;
+            if (typeof val === 'number') return val;
+            const cleaned = String(val).replace(/,/g, '').trim();
+            const parsed = parseFloat(cleaned);
+            return isNaN(parsed) ? null : parsed;
+        }
+
+        function makeKey(code, unit) {
+            return `${String(code || '').trim().toUpperCase()}_${String(unit || '').trim().toUpperCase()}`;
+        }
+
+        function findStandard(code, unit) {
+            const compKey = makeKey(code, unit);
+            if (replenishStandards[compKey]) {
+                return replenishStandards[compKey];
+            }
+            const cleanCode = String(code || '').trim().toUpperCase();
+            if (replenishStandards[cleanCode]) {
+                return replenishStandards[cleanCode];
+            }
+            if (DEFAULT_STANDARDS[cleanCode]) {
+                return DEFAULT_STANDARDS[cleanCode];
+            }
+            return null;
+        }
+
+        function saveStandardsToStorage() {
+            localStorage.setItem('package_standards_db_v5', JSON.stringify(replenishStandards));
+        }
+
+        function loadStandardsFromStorage() {
+            const currentStoredVersion = localStorage.getItem('package_standards_code_version');
+            const stored = localStorage.getItem('package_standards_db_v5');
+            let localData = {};
+
+            if (stored) {
+                try {
+                    localData = JSON.parse(stored);
+                } catch(e) {
+                    console.error("解析 LocalStorage 發生錯誤", e);
+                }
+            }
+            
+            const cleanedLocalData = {};
+            for (let key in localData) {
+                let item = localData[key];
+                if (item && item.code) {
+                    const cleanCode = String(item.code).toUpperCase().trim();
+                    cleanedLocalData[cleanCode] = {
+                        name: item.name,
+                        code: cleanCode,
+                        unit: item.unit || '',
+                        refill: parseFloat(item.refill) || 0,
+                        category: item.category || '包材'
+                    };
+                }
+            }
+
+            if (currentStoredVersion !== CODE_VERSION) {
+                console.log(`包材代碼標準升級中！自 ${currentStoredVersion} 升級至最新版 ${CODE_VERSION}`);
+                localStorage.setItem('package_standards_code_version', CODE_VERSION);
+                
+                const customLocalData = {};
+                for (let key in cleanedLocalData) {
+                    if (!DEFAULT_STANDARDS[key]) {
+                        customLocalData[key] = cleanedLocalData[key];
+                    }
+                }
+                
+                replenishStandards = { ...DEFAULT_STANDARDS, ...customLocalData };
+            } else {
+                replenishStandards = { ...cleanedLocalData, ...DEFAULT_STANDARDS };
+            }
+            
+            saveStandardsToStorage();
+        }
+
+        function renderSettingsList() {
+            const stdTableBody = document.getElementById('stdTableBody');
+            const stdCountText = document.getElementById('stdCountText');
+            const searchStdInput = document.getElementById('searchStdInput');
+            if (!stdTableBody) return;
+
+            stdTableBody.innerHTML = '';
+            const query = searchStdInput ? searchStdInput.value.trim().toLowerCase() : '';
+            
+            let sortedKeys = Object.keys(replenishStandards).sort();
+            let displayCount = 0;
+
+            sortedKeys.forEach(compositeKey => {
+                const item = replenishStandards[compositeKey];
+                
+                if (query && 
+                    !item.code.toLowerCase().includes(query) && 
+                    !item.name.toLowerCase().includes(query)) {
+                    return; 
+                }
+
+                displayCount++;
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50 transition-colors";
+                tr.innerHTML = `
+                    <td class="px-6 py-3 font-mono font-semibold text-slate-800">${item.code}</td>
+                    <td class="px-6 py-3 text-slate-500 font-medium">${item.unit || '通用'}</td>
+                    <td class="px-6 py-3 text-slate-600">${item.name}</td>
+                    <td class="px-6 py-3 text-right font-mono font-bold text-emerald-600">${item.refill !== null ? item.refill.toLocaleString() : '未設定'}</td>
+                    <td class="px-6 py-3 text-center space-x-1">
+                        <button onclick="window.editStd('${compositeKey}')" class="text-emerald-600 hover:text-emerald-900 font-medium px-2 py-1 rounded hover:bg-emerald-50">修改</button>
+                        <button onclick="window.deleteStd('${compositeKey}')" class="text-rose-600 hover:text-rose-900 font-medium px-2 py-1 rounded hover:bg-rose-50">刪除</button>
+                    </td>
+                `;
+                stdTableBody.appendChild(tr);
+            });
+
+            if (stdCountText) stdCountText.textContent = Object.keys(replenishStandards).length;
+
+            if (displayCount === 0) {
+                stdTableBody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="px-6 py-8 text-center text-slate-400">
+                            沒有找到符合的包材補貨標準。
+                        </td>
+                    </tr>
+                `;
+            }
+            if (window.lucide) window.lucide.createIcons();
+        }
+
+        function autoLoadBackupJson() {
+            fetch('包材補貨標準備份.json?t=' + new Date().getTime(), { cache: 'no-store' })
+                .then(response => {
+                    if (response.ok) return response.json();
+                    throw new Error('No backup json found');
+                })
+                .then(jsonData => {
+                    console.log('偵測到 包材補貨標準備份.json，自動載入並合併中...');
+                    let mergedCount = 0;
+                    for (let key in jsonData) {
+                        let item = jsonData[key];
+                        if (item && item.code && item.refill !== undefined) {
+                            const cleanCode = String(item.code).toUpperCase().trim();
+                            replenishStandards[cleanCode] = {
+                                name: item.name,
+                                code: cleanCode,
+                                unit: item.unit || '',
+                                refill: parseFloat(item.refill) || 0,
+                                category: item.category || '未分類'
+                            };
+                            mergedCount++;
+                        }
+                    }
+                    if (mergedCount > 0) {
+                        saveStandardsToStorage();
+                        renderSettingsList();
+                        showToast(`已成功自動預載備份檔！共載入 ${mergedCount} 個精準包材補貨標準。`, 'shield-check', 'text-emerald-400');
+                    }
+                })
+                .catch(err => {
+                    console.log('未偵測到預載 JSON 備份檔，將採用 DEFAULT_STANDARDS。');
+                });
+        }
+
+        function autoFetchCloudOnLoad(url) {
+            if (!url) {
+                autoDetectLocalFile();
+                return;
+            }
+            const dataSourceTag = document.getElementById('dataSourceTag');
+            const loadingStatusText = document.getElementById('loadingStatusText');
+            if (dataSourceTag) dataSourceTag.textContent = `* 數據載入來源: 🌐 Google Sheet 雲端實時更新 (自動連線)`;
+            if (loadingStatusText) loadingStatusText.textContent = "正在與預設 Google Sheet 建立連線、自動讀取最新結餘中...";
+            showLoading(true);
+            
+            const busterUrl = url + (url.includes('?') ? '&' : '?') + 't=' + new Date().getTime();
+
+            fetch(busterUrl, { cache: 'no-store' })
+                .then(response => {
+                    if (!response.ok) throw new Error('雲端網址讀取失敗');
+                    return response.text();
+                })
+                .then(csvText => {
+                    parseCSV(csvText);
+                    showToast('已成功自動同步雲端包材庫存！', 'shield-check', 'text-emerald-400');
+                })
+                .catch(err => {
+                    console.log('雲端資料自動載入失敗，嘗試讀取本機「包材標準.csv」...', err);
+                    showLoading(false);
+                    autoDetectLocalFile();
+                });
+        }
+
+        function autoDetectLocalFile() {
+            fetch('包材標準.csv?t=' + new Date().getTime(), { cache: 'no-store' })
+                .then(response => {
+                    if (response.ok) return response.text();
+                    throw new Error('No default csv');
+                })
+                .then(csvText => {
+                    const dataSourceTag = document.getElementById('dataSourceTag');
+                    if (dataSourceTag) dataSourceTag.textContent = `* 數據載入來源: 📁 全自動讀取 (包材標準.csv)`;
+                    parseCSV(csvText);
+                })
+                .catch(err => {
+                    console.log('未偵測到預載的包材標準.csv 檔案。');
+                });
+        }
+
+        function showLoading(isLoading) {
+            const loadingStatus = document.getElementById('loadingStatus');
+            const emptyState = document.getElementById('emptyState');
+            const tableContainer = document.getElementById('tableContainer');
+            const statsContainer = document.getElementById('statsContainer');
+            const filterContainer = document.getElementById('filterContainer');
+            const allSafeCelebration = document.getElementById('allSafeCelebration');
+
+            if (isLoading) {
+                if (loadingStatus) loadingStatus.classList.remove('hidden');
+                if (emptyState) emptyState.classList.add('hidden');
+                if (tableContainer) tableContainer.classList.add('hidden');
+                if (statsContainer) statsContainer.classList.add('hidden');
+                if (filterContainer) filterContainer.classList.add('hidden');
+                if (allSafeCelebration) allSafeCelebration.classList.add('hidden');
+            } else {
+                if (loadingStatus) loadingStatus.classList.add('hidden');
+            }
+        }
+
+        function parseCSVLine(text) {
+            let p = '', r = [];
+            let q = false;
+            for (let i = 0; i < text.length; i++) {
+                let c = text.charAt(i);
+                if (c === '"') {
+                    q = !q; 
+                } else if (c === ',' && !q) { 
+                    r.push(p); 
+                    p = ''; 
+                } else {
+                    p += c;
+                }
+            }
+            r.push(p);
+            return r.map(cell => cell.replace(/^"(.*)"$/, '$1').trim());
+        }
+
+        function parseExcelData(sheetRows) {
+            try {
+                const headers = sheetRows[0].map(h => String(h || '').trim());
+                
+                const headerMap = {
+                    category: headers.findIndex(h => h.includes('品類')),
+                    itemCode: headers.findIndex(h => h.includes('品項代號')),
+                    itemName: headers.findIndex(h => h.includes('品項') && !h.includes('代號') && !h.includes('單位')),
+                    unit: headers.findIndex(h => h.includes('單位') || h.includes('庫存單位')),
+                    warehouse: headers.findIndex(h => h.includes('倉庫')),
+                    stock: headers.findIndex(h => h.includes('庫存量') || h.includes('庫存數量')),
+                    refill: headers.findIndex(h => h.includes('最低庫存') || h.includes('補貨標準'))
+                };
+
+                const colIdx = {
+                    category: headerMap.category !== -1 ? headerMap.category : 0,
+                    itemCode: headerMap.itemCode !== -1 ? headerMap.itemCode : 1,
+                    itemName: headerMap.itemName !== -1 ? headerMap.itemName : 2,
+                    unit: headerMap.unit !== -1 ? headerMap.unit : 3,
+                    warehouse: headerMap.warehouse !== -1 ? headerMap.warehouse : 4,
+                    stock: headerMap.stock !== -1 ? headerMap.stock : 5,
+                    refill: headerMap.refill !== -1 ? headerMap.refill : 6
+                };
+
+                const parsedData = [];
+                let hasRefillUpdated = false;
+
+                for (let i = 1; i < sheetRows.length; i++) {
+                    const cells = sheetRows[i];
+                    if (!cells || cells.length === 0) continue;
+
+                    const itemCode = cells[colIdx.itemCode] ? String(cells[colIdx.itemCode]).trim() : '';
+                    const warehouse = cells[colIdx.warehouse] ? String(cells[colIdx.warehouse]).trim() : '';
+                    const unit = cells[colIdx.unit] ? String(cells[colIdx.unit]).trim() : '';
+                    const refillVal = cells[colIdx.refill] !== undefined && cells[colIdx.refill] !== '' ? cleanFloat(cells[colIdx.refill]) : null;
+
+                    if (itemCode && warehouse) {
+                        if (refillVal !== null && !isNaN(refillVal)) {
+                            const cleanCode = String(itemCode).toUpperCase().trim();
+                            replenishStandards[cleanCode] = {
+                                name: cells[colIdx.itemName] ? String(cells[colIdx.itemName]).trim() : '品項',
+                                code: cleanCode,
+                                unit: unit,
+                                refill: refillVal,
+                                category: cells[colIdx.category] ? String(cells[colIdx.category]).trim() : '包材'
+                            };
+                            hasRefillUpdated = true;
+                        }
+
+                        if (ALLOWED_WAREHOUSES.includes(warehouse)) {
+                            parsedData.push({
+                                category: cells[colIdx.category] !== undefined ? String(cells[colIdx.category]).trim() : '包材',
+                                itemCode: itemCode,
+                                itemName: cells[colIdx.itemName] !== undefined ? String(cells[colIdx.itemName]).trim() : '',
+                                unit: unit,
+                                warehouse: warehouse,
+                                stock: cleanFloat(cells[colIdx.stock]) || 0
+                            });
+                        }
+                    }
+                }
+
+                if (hasRefillUpdated) {
+                    saveStandardsToStorage();
+                }
+
+                if (parsedData.length === 0) {
+                    throw new Error('未在檔案中找到任何符合限定五個常溫/包材倉庫的數據。');
+                }
+
+                originalRows = parsedData;
+                analyzeInventory();
+
+            } catch (error) {
+                showLoading(false);
+                const emptyState = document.getElementById('emptyState');
+                if (emptyState) emptyState.classList.remove('hidden');
+                showToast(`Excel 解析失敗: ${error.message}`, 'alert-circle', 'text-rose-400');
+            }
+        }
+
+        function parseCSV(text) {
+            try {
+                const lines = text.split(/\r?\n/);
+                if (lines.length < 2) throw new Error('檔案格式不正確');
+
+                const headers = parseCSVLine(lines[0]);
+                const headerMap = {
+                    category: headers.findIndex(h => h.includes('品類')),
+                    itemCode: headers.findIndex(h => h.includes('品項代號')),
+                    itemName: headers.findIndex(h => h.includes('品項') && !h.includes('代號') && !h.includes('單位')),
+                    unit: headers.findIndex(h => h.includes('單位') || h.includes('庫存單位')),
+                    warehouse: headers.findIndex(h => h.includes('倉庫')),
+                    stock: headers.findIndex(h => h.includes('庫存量') || h.includes('庫存數量')),
+                    refill: headers.findIndex(h => h.includes('最低庫存') || h.includes('補貨標準'))
+                };
+
+                const colIdx = {
+                    category: headerMap.category !== -1 ? headerMap.category : 0,
+                    itemCode: headerMap.itemCode !== -1 ? headerMap.itemCode : 1,
+                    itemName: headerMap.itemName !== -1 ? headerMap.itemName : 2,
+                    unit: headerMap.unit !== -1 ? headerMap.unit : 3,
+                    warehouse: headerMap.warehouse !== -1 ? headerMap.warehouse : 4,
+                    stock: headerMap.stock !== -1 ? headerMap.stock : 5,
+                    refill: headerMap.refill !== -1 ? headerMap.refill : 6
+                };
+
+                const parsedData = [];
+                let hasRefillUpdated = false;
+
+                for (let i = 1; i < lines.length; i++) {
+                    const line = lines[i].trim();
+                    if (!line) continue;
+
+                    const cells = parseCSVLine(line);
+                    if (cells[colIdx.itemCode] && cells[colIdx.warehouse]) {
+                        const warehouse = cells[colIdx.warehouse].trim();
+                        const itemCode = cells[colIdx.itemCode].trim();
+                        const unit = cells[colIdx.unit] ? cells[colIdx.unit].trim() : '';
+                        const refillVal = cells[colIdx.refill] !== undefined && cells[colIdx.refill] !== '' ? cleanFloat(cells[colIdx.refill]) : null;
+
+                        if (refillVal !== null && !isNaN(refillVal)) {
+                            const cleanCode = String(itemCode).toUpperCase().trim();
+                            replenishStandards[cleanCode] = {
+                                name: cells[colIdx.itemName] ? cells[colIdx.itemName].trim() : '品項',
+                                code: cleanCode,
+                                unit: unit,
+                                refill: refillVal,
+                                category: cells[colIdx.category] ? cells[colIdx.category].trim() : '包材'
+                            };
+                            hasRefillUpdated = true;
+                        }
+
+                        if (ALLOWED_WAREHOUSES.includes(warehouse)) {
+                            parsedData.push({
+                                category: cells[colIdx.category] || '包材',
+                                itemCode: itemCode,
+                                itemName: cells[colIdx.itemName] || '',
+                                unit: unit,
+                                warehouse: warehouse,
+                                stock: cleanFloat(cells[colIdx.stock]) || 0
+                            });
+                        }
+                    }
+                }
+
+                if (hasRefillUpdated) {
+                    saveStandardsToStorage();
+                }
+
+                if (parsedData.length === 0) throw new Error('找不到指定五倉的包材庫存。');
+
+                originalRows = parsedData;
+                analyzeInventory();
+
+            } catch (error) {
+                showLoading(false);
+                const emptyState = document.getElementById('emptyState');
+                if (emptyState) emptyState.classList.remove('hidden');
+                showToast(`CSV 解析失敗: ${error.message}`, 'alert-circle', 'text-rose-400');
+            }
+        }
+
+        function analyzeInventory() {
+            const inventoryLookup = {};
+            
+            originalRows.forEach(row => {
+                const cleanCode = String(row.itemCode).toUpperCase().trim();
+                if (!inventoryLookup[cleanCode]) {
+                    inventoryLookup[cleanCode] = {};
+                }
+                inventoryLookup[cleanCode][row.warehouse] = (inventoryLookup[cleanCode][row.warehouse] || 0) + row.stock;
+            });
+
+            processedRows = originalRows.map(row => {
+                let needReplenish = false;
+                let needPurchase = false;
+                let isNoStandard = false;
+                let backupStockInfo = '';
+                
+                const cleanCode = String(row.itemCode).toUpperCase().trim();
+                const stdItem = findStandard(cleanCode, row.unit);
+                const refillLimit = stdItem ? stdItem.refill : null;
+
+                let displayName = row.itemName;
+                if (!displayName && stdItem && stdItem.name) {
+                    displayName = stdItem.name;
+                }
+
+                if (MAIN_WAREHOUSES.includes(row.warehouse)) {
+                    if (refillLimit !== null) {
+                        const stockInFactory1 = inventoryLookup[cleanCode]["綠園二廠/包材倉"] || 0;
+                        const stockInFactory2 = inventoryLookup[cleanCode]["綠園二廠/常溫區"] || 0;
+                        const totalMainStock = stockInFactory1 + stockInFactory2;
+
+                        if (totalMainStock < refillLimit) {
+                            const stockInCarport1 = inventoryLookup[cleanCode]["車棚1倉/包材倉"] || 0;
+                            const stockInCarport2 = inventoryLookup[cleanCode]["車棚2倉/久儲包材倉"] || 0;
+                            const stockInLowTemp = inventoryLookup[cleanCode]["63-5倉/常溫料架區"] || 0;
+                            const totalBackupStock = stockInCarport1 + stockInCarport2 + stockInLowTemp;
+
+                            if (totalBackupStock > 0) {
+                                needReplenish = true;
+                                const backups = [];
+                                if (stockInCarport1 > 0) {
+                                    backups.push(`車棚1倉: <span class="text-rose-700 bg-rose-100 px-1.5 py-0.5 rounded font-mono font-bold text-[13px]">${stockInCarport1}</span>`);
+                                }
+                                if (stockInCarport2 > 0) {
+                                    backups.push(`車棚2倉: <span class="text-rose-700 bg-rose-100 px-1.5 py-0.5 rounded font-mono font-bold text-[13px]">${stockInCarport2}</span>`);
+                                }
+                                if (stockInLowTemp > 0) {
+                                    backups.push(`63-5常溫: <span class="text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded font-mono font-bold text-[13px]">${stockInLowTemp}</span>`);
+                                }
+                                backupStockInfo = backups.join(' / ');
+                            } else {
+                                needPurchase = true; 
+                            }
+                        }
+                    } else {
+                        isNoStandard = true;
+                    }
+                }
+
+                return {
+                    ...row,
+                    itemName: displayName || '未知包材品項',
+                    refill: refillLimit,
+                    needReplenish,
+                    needPurchase,
+                    isNoStandard,
+                    backupStockInfo
+                };
+            });
+
+            updateStatsAndUI();
+            showLoading(false);
+            
+            const statsContainer = document.getElementById('statsContainer');
+            const filterContainer = document.getElementById('filterContainer');
+            if (statsContainer) statsContainer.classList.remove('hidden');
+            if (filterContainer) filterContainer.classList.remove('hidden');
+            
+            updateFilterButtons(currentFilter);
+            checkCelebration();
+            showToast(`成功自動對應 ${originalRows.length} 筆包材五倉資料`, 'check', 'text-emerald-400');
+        }
+
+        function checkCelebration() {
+            const replenishCount = processedRows.filter(r => r.needReplenish).length;
+            const purchaseCount = processedRows.filter(r => r.needPurchase).length;
+            
+            const allSafeCelebration = document.getElementById('allSafeCelebration');
+            const tableContainer = document.getElementById('tableContainer');
+            
+            if (currentFilter === 'all' || currentFilter === 'no_std') {
+                if (allSafeCelebration) allSafeCelebration.classList.add('hidden');
+                if (tableContainer) tableContainer.classList.remove('hidden');
+            } else if (currentFilter === 'replenish' && replenishCount === 0) {
+                if (tableContainer) tableContainer.classList.add('hidden');
+                if (allSafeCelebration) allSafeCelebration.classList.remove('hidden');
+            } else if (currentFilter === 'purchase' && purchaseCount === 0) {
+                if (tableContainer) tableContainer.classList.add('hidden');
+                if (allSafeCelebration) allSafeCelebration.classList.remove('hidden');
+            } else {
+                if (allSafeCelebration) allSafeCelebration.classList.add('hidden');
+                if (tableContainer) tableContainer.classList.remove('hidden');
+            }
+        }
+
+        function editStd(compositeKey) {
+            const item = replenishStandards[compositeKey];
+            if (item) {
+                const formItemCode = document.getElementById('formItemCode');
+                const formUnit = document.getElementById('formUnit');
+                const formItemName = document.getElementById('formItemName');
+                const formRefill = document.getElementById('formRefill');
+
+                if (formItemCode) {
+                    formItemCode.value = item.code;
+                    formItemCode.setAttribute('readonly', true);
+                }
+                if (formUnit) {
+                    formUnit.value = item.unit || '';
+                    formUnit.setAttribute('readonly', true);
+                }
+                if (formItemName) formItemName.value = item.name;
+                if (formRefill) {
+                    formRefill.value = item.refill;
+                    formRefill.focus();
+                }
+                document.getElementById('formTitle').textContent = `正在修改: ${item.code}`;
+                showToast(`已載入 ${item.code} 設定，請在左側修改標準數量後點選儲存`, 'info', 'text-sky-400');
+            }
+        }
+
+        function deleteStd(compositeKey) {
+            const item = replenishStandards[compositeKey];
+            if (!item) return;
+            if (confirm(`確定要刪除品項 [ ${item.code} ] 的最低庫存標準嗎？`)) {
+                delete replenishStandards[compositeKey];
+                saveStandardsToStorage();
+                renderSettingsList();
+                showToast(`已刪除品項 ${item.code} 的補貨標準`, 'trash', 'text-rose-400');
+                if (originalRows.length > 0) {
+                    analyzeInventory();
+                }
+            }
+        }
+
+        function quickSetStd(compositeKey, name) {
+            const executeQuickSet = () => {
+                const splitIdx = compositeKey.lastIndexOf('_');
+                const code = compositeKey.substring(0, splitIdx);
+                const unit = compositeKey.substring(splitIdx + 1);
+
+                setActiveTab('settings');
+                const formItemCode = document.getElementById('formItemCode');
+                const formUnit = document.getElementById('formUnit');
+                const formItemName = document.getElementById('formItemName');
+                const formRefill = document.getElementById('formRefill');
+
+                if (formItemCode) {
+                    formItemCode.value = code;
+                    formItemCode.setAttribute('readonly', true);
+                }
+                if (formUnit) {
+                    formUnit.value = unit;
+                    formUnit.setAttribute('readonly', true);
+                }
+                if (formItemName) formItemName.value = name;
+                if (formRefill) {
+                    formRefill.value = '';
+                    formRefill.focus();
+                }
+                document.getElementById('formTitle').textContent = `設定品項標準: ${code}`;
+            };
+
+            if (isUnlocked) {
+                executeQuickSet();
+            } else {
+                openPasswordModal(executeQuickSet);
+            }
+        }
+
+        function switchFilterToAll() {
+            currentFilter = 'all';
+            updateFilterButtons('all');
+            checkCelebration();
+            renderTable();
+        }
+
+        function openPasswordModal(onSuccess) {
+            pendingAction = onSuccess;
+            const passwordErrorMsg = document.getElementById('passwordErrorMsg');
+            const inputSettingsPassword = document.getElementById('inputSettingsPassword');
+            const passwordModal = document.getElementById('passwordModal');
+            const passwordModalCard = document.getElementById('passwordModalCard');
+
+            if (passwordErrorMsg) passwordErrorMsg.classList.add('hidden');
+            if (inputSettingsPassword) inputSettingsPassword.value = '';
+            
+            if (passwordModal) {
+                passwordModal.classList.remove('pointer-events-none');
+                passwordModal.classList.remove('opacity-0');
+                passwordModal.classList.add('opacity-100');
+            }
+            if (passwordModalCard) {
+                passwordModalCard.classList.remove('scale-95');
+                passwordModalCard.classList.add('scale-100');
+            }
+            
+            setTimeout(() => {
+                if (inputSettingsPassword) inputSettingsPassword.focus();
+            }, 150);
+        }
+
+        function closePasswordModal() {
+            const passwordModal = document.getElementById('passwordModal');
+            const passwordModalCard = document.getElementById('passwordModalCard');
+
+            if (passwordModal) {
+                passwordModal.classList.remove('opacity-100');
+                passwordModal.classList.add('opacity-0');
+                passwordModal.classList.add('pointer-events-none');
+            }
+            if (passwordModalCard) {
+                passwordModalCard.classList.remove('scale-100');
+                passwordModalCard.classList.add('scale-95');
+            }
+            pendingAction = null;
+        }
+
+        function updateFilterButtons(filter) {
+            const btnAll = document.getElementById('btnAll');
+            const btnReplenishOnly = document.getElementById('btnReplenishOnly');
+            const btnPurchaseOnly = document.getElementById('btnPurchaseOnly');
+            const btnNoStdOnly = document.getElementById('btnNoStdOnly');
+
+            if (btnAll) {
+                btnAll.className = filter === 'all' 
+                    ? "px-4 py-2 rounded-lg text-sm font-semibold bg-slate-900 text-white transition-colors" 
+                    : "px-4 py-2 rounded-lg text-sm font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors";
+            }
+            if (btnReplenishOnly) {
+                btnReplenishOnly.className = filter === 'replenish'
+                    ? "px-4 py-2 rounded-lg text-sm font-semibold bg-rose-600 text-white transition-colors flex items-center shadow-md"
+                    : "px-4 py-2 rounded-lg text-sm font-semibold bg-slate-100 text-rose-600 hover:bg-rose-50 transition-colors flex items-center";
+            }
+            if (btnPurchaseOnly) {
+                btnPurchaseOnly.className = filter === 'purchase'
+                    ? "px-4 py-2 rounded-lg text-sm font-semibold bg-purple-600 text-white transition-colors flex items-center shadow-md"
+                    : "px-4 py-2 rounded-lg text-sm font-semibold bg-slate-100 text-purple-700 hover:bg-purple-100 transition-colors flex items-center";
+            }
+            if (btnNoStdOnly) {
+                btnNoStdOnly.className = filter === 'no_std'
+                    ? "px-4 py-2 rounded-lg text-sm font-semibold bg-amber-600 text-white transition-colors flex items-center shadow-md"
+                    : "px-4 py-2 rounded-lg text-sm font-semibold bg-slate-100 text-amber-700 hover:bg-amber-50 transition-colors flex items-center";
+            }
+        }
+
+        function renderTable() {
+            const tableBody = document.getElementById('tableBody');
+            if (!tableBody) return;
+            tableBody.innerHTML = '';
+            let displayRows = processedRows;
+
+            if (currentFilter === 'replenish') {
+                displayRows = displayRows.filter(r => r.needReplenish);
+            } else if (currentFilter === 'purchase') {
+                displayRows = displayRows.filter(r => r.needPurchase);
+            } else if (currentFilter === 'no_std') {
+                displayRows = displayRows.filter(r => r.isNoStandard);
+            }
+
+            const searchInput = document.getElementById('searchInput');
+            const query = searchInput ? searchInput.value.toLowerCase() : '';
+            if (query) {
+                displayRows = displayRows.filter(r => 
+                    r.itemCode.toLowerCase().includes(query) || 
+                    r.itemName.toLowerCase().includes(query) ||
+                    r.unit.toLowerCase().includes(query) ||
+                    r.category.toLowerCase().includes(query)
+                );
+            }
+
+            if (displayRows.length === 0) {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="8" class="px-6 py-12 text-center text-slate-400">
+                            <div class="flex flex-col items-center justify-center">
+                                <i data-lucide="search-code" class="w-8 h-8 mb-2 text-slate-300"></i>
+                                <span>找不到符合條件的包材數據紀錄</span>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+                if (window.lucide) window.lucide.createIcons();
+                return;
+            }
+
+            displayRows.forEach(row => {
+                const tr = document.createElement('tr');
+                
+                if (row.needReplenish) {
+                    tr.className = "bg-rose-50/95 hover:bg-rose-100/95 transition-colors border-l-4 border-rose-500 font-medium";
+                } else if (row.needPurchase) {
+                    tr.className = "bg-purple-50/95 hover:bg-purple-100/95 transition-colors border-l-4 border-purple-500 font-medium";
+                } else if (row.isNoStandard) {
+                    tr.className = "bg-amber-50/40 hover:bg-amber-100/40 text-slate-700";
+                } else {
+                    tr.className = "hover:bg-slate-50/80 transition-colors text-slate-700";
+                }
+
+                let refillCell = '';
+                const compositeKey = makeKey(row.itemCode, row.unit);
+                if (row.refill !== null) {
+                    refillCell = `<span class="font-mono font-bold text-slate-900 text-sm">${row.refill.toLocaleString()}</span>`;
+                } else if (MAIN_WAREHOUSES.includes(row.warehouse)) {
+                    refillCell = `
+                        <button onclick="window.quickSetStd('${compositeKey}', '${row.itemName}')" class="text-xs text-amber-600 hover:text-amber-800 bg-amber-50 hover:bg-amber-100 px-2 py-0.5 rounded border border-amber-200 flex items-center inline-flex">
+                            <i data-lucide="plus" class="w-3 h-3 mr-0.5"></i> 設定標準
+                        </button>
+                    `;
+                } else {
+                    refillCell = `<span class="text-slate-300">-</span>`;
+                }
+
+                let statusBadge = '';
+                if (row.needReplenish) {
+                    statusBadge = `
+                        <div class="inline-flex flex-col items-center space-y-1.5 py-1">
+                            <span class="inline-flex items-center px-2 py-1 rounded bg-rose-200 text-rose-800 text-xs font-bold border border-rose-300 animate-pulse">
+                                <i data-lucide="alert-circle" class="w-3.5 h-3.5 mr-1"></i>
+                                內場需補貨
+                            </span>
+                            <span class="text-xs text-slate-600 mt-1 font-semibold flex flex-wrap items-center justify-center gap-1">
+                                後援: ${row.backupStockInfo}
+                            </span>
+                        </div>
+                    `;
+                } else if (row.needPurchase) {
+                    statusBadge = `
+                        <div class="inline-flex flex-col items-center space-y-1.5 py-1">
+                            <span class="inline-flex items-center px-2 py-1 rounded bg-purple-200 text-purple-800 text-xs font-bold border border-purple-300 animate-pulse shadow-sm shadow-purple-500/20">
+                                <i data-lucide="shopping-cart" class="w-3.5 h-3.5 mr-1"></i>
+                                缺貨需採購
+                            </span>
+                            <span class="text-[10px] text-purple-600 mt-1 font-semibold flex items-center gap-1">
+                                其他後援倉已無庫存
+                            </span>
+                        </div>
+                    `;
+                } else if (MAIN_WAREHOUSES.includes(row.warehouse)) {
+                    if (row.isNoStandard) {
+                        statusBadge = `
+                            <span class="inline-flex items-center px-2 py-1 rounded bg-amber-100 text-amber-800 text-xs font-medium">
+                                未設最低標準
+                            </span>
+                        `;
+                    } else if (row.stock < row.refill) {
+                        statusBadge = `
+                            <span class="inline-flex items-center px-2 py-1 rounded bg-slate-200 text-slate-800 text-xs font-medium">
+                                生產倉不足但後援無貨
+                            </span>
+                        `;
+                    } else {
+                        statusBadge = `
+                            <span class="inline-flex items-center px-2 py-1 rounded bg-emerald-100 text-emerald-800 text-xs font-medium">
+                                庫存安全
+                            </span>
+                        `;
+                    }
+                } else {
+                    statusBadge = `
+                        <span class="inline-flex items-center px-2 py-1 rounded bg-slate-100 text-slate-600 text-xs">
+                            後援常備庫存
+                        </span>
+                    `;
+                }
+
+                tr.innerHTML = `
+                    <td class="px-6 py-4 text-slate-400 text-xs">${row.category}</td>
+                    <td class="px-6 py-4 font-mono font-semibold">${row.itemCode}</td>
+                    <td class="px-6 py-4 text-slate-900">${row.itemName}</td>
+                    <td class="px-6 py-4 font-medium text-slate-500 text-xs">${row.unit}</td>
+                    <td class="px-6 py-4">
+                        <span class="px-2 py-0.5 rounded text-xs ${
+                            MAIN_WAREHOUSES.includes(row.warehouse) 
+                            ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' 
+                            : 'bg-slate-100 text-slate-700 border border-slate-200'
+                        }">
+                            ${row.warehouse}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 text-right font-mono font-extrabold text-[18px] tracking-tight ${row.needReplenish ? 'text-rose-600' : 'text-purple-600' ? 'text-purple-600' : 'text-slate-900'}">${row.stock.toLocaleString()}</td>
+                    <td class="px-6 py-4 text-right">${refillCell}</td>
+                    <td class="px-6 py-4 text-center">${statusBadge}</td>
+                `;
+
+                tableBody.appendChild(tr);
+            });
+
+            if (window.lucide) window.lucide.createIcons();
+        }
+
+        function updateStatsAndUI() {
+            const statTotal = document.getElementById('statTotal');
+            const statItems = document.getElementById('statItems');
+            const statReplenish = document.getElementById('statReplenish');
+            const statPurchase = document.getElementById('statPurchase');
+            const statNoStandard = document.getElementById('statNoStandard');
+            const btnReplenishCount = document.getElementById('btnReplenishCount');
+            const btnPurchaseCount = document.getElementById('btnPurchaseCount');
+            const btnNoStdCount = document.getElementById('btnNoStdCount');
+
+            if (statTotal) statTotal.textContent = processedRows.length;
+            
+            const uniqueItems = new Set(processedRows.map(r => r.itemCode));
+            if (statItems) statItems.textContent = uniqueItems.size;
+
+            const replenishCount = processedRows.filter(r => r.needReplenish).length;
+            if (statReplenish) statReplenish.textContent = replenishCount;
+            if (btnReplenishCount) btnReplenishCount.textContent = replenishCount;
+
+            const purchaseCount = processedRows.filter(r => r.needPurchase).length;
+            if (statPurchase) statPurchase.textContent = purchaseCount;
+            if (btnPurchaseCount) btnPurchaseCount.textContent = purchaseCount;
+
+            const noStdCount = processedRows.filter(r => r.isNoStandard).length;
+            if (statNoStandard) statNoStandard.textContent = noStdCount;
+            if (btnNoStdCount) btnNoStdCount.textContent = noStdCount;
+
+            renderTable();
+        }
+
+        function setActiveTab(tab) {
+            const tabInventory = document.getElementById('tabInventory');
+            const tabSettings = document.getElementById('tabSettings');
+            const sectInventory = document.getElementById('sectInventory');
+            const sectSettings = document.getElementById('sectSettings');
+
+            if (tab === 'inventory') {
+                if (tabInventory) tabInventory.className = "px-4 py-1.5 rounded-lg text-sm font-semibold bg-white text-emerald-800 shadow-sm transition-all flex items-center";
+                if (tabSettings) tabSettings.className = "px-4 py-1.5 rounded-lg text-sm font-semibold text-emerald-100 hover:text-white hover:bg-emerald-600/50 transition-all flex items-center";
+                if (sectInventory) sectInventory.classList.remove('hidden');
+                if (sectSettings) sectSettings.classList.add('hidden');
+            } else {
+                if (tabSettings) tabSettings.className = "px-4 py-1.5 rounded-lg text-sm font-semibold bg-white text-emerald-800 shadow-sm transition-all flex items-center";
+                if (tabInventory) tabInventory.className = "px-4 py-1.5 rounded-lg text-sm font-semibold text-emerald-100 hover:text-white hover:bg-emerald-600/50 transition-all flex items-center";
+                if (sectInventory) sectInventory.classList.add('hidden');
+                if (sectSettings) sectSettings.classList.remove('hidden');
+            }
+        }
+
+        function showToast(message, iconName, iconColorClass = 'text-white') {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toastMessage');
+            const toastIcon = document.getElementById('toastIcon');
+
+            if (!toast || !toastMessage || !toastIcon) return;
+
+            toastMessage.textContent = message;
+            toastIcon.setAttribute('data-lucide', iconName);
+            toastIcon.className = `w-5 h-5 ${iconColorClass}`;
+            
+            if (window.lucide) window.lucide.createIcons();
+
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 4000);
+        }
+
+        // ==========================================
+        // 1. 全域變數定義
+        // ==========================================
+        const CODE_VERSION = "2026.06.06_v5.2"; 
+        const SETTINGS_PASSWORD = "1021";
+        
+        const MAIN_WAREHOUSES = [
+            "綠園二廠/包材倉",
+            "綠園二廠/常溫區"
+        ];
+        
+        const BACKUP_WAREHOUSES = [
+            "車棚1倉/包材倉",
+            "車棚2倉/久儲包材倉",
+            "63-5倉/常溫料架區"
+        ];
+
+        const ALLOWED_WAREHOUSES = [...MAIN_WAREHOUSES, ...BACKUP_WAREHOUSES];
+
+        const DEFAULT_STANDARDS = {
+            "Z01001": { "name": "珠光空白貼紙30x20/2000張(銀耳、五福)", "code": "Z01001", "unit": "", "refill": 4000, "category": "貼紙" },
+            "Z01002": { "name": "珠光空白貼紙35x25/2000張(香草)", "code": "Z01002", "unit": "", "refill": 8000, "category": "貼紙" },
+            "Z01003": { "name": "珠光空白貼紙60x50/2000張(圓盤綜合菇)", "code": "Z01003", "unit": "", "refill": null, "category": "貼紙" },
+            "Z01005": { "name": "熱感貼紙70x40/1900張(Green Living有機)", "code": "Z01005", "unit": "", "refill": 9500, "category": "貼紙" },
+            "Z01007": { "name": "熱感貼紙75x42/3000張(產銷履歷)", "code": "Z01007", "unit": "", "refill": 48000, "category": "貼紙" },
+            "Z01012": { "name": "熱感貼紙94x64/3000張(履歷洋菇PLB二合一)", "code": "Z01012", "unit": "", "refill": 6000, "category": "貼紙" },
+            "Z01013": { "name": "熱感貼紙83x64/2000張(履歷洋菇CQL二合一)", "code": "Z01013", "unit": "", "refill": null, "category": "貼紙" },
+            "Z01014": { "name": "珠光貼紙55x55/3000張(履歷香菇貼紙)", "code": "Z01014", "unit": "", "refill": 24000, "category": "貼紙" },
+            "Z01015": { "name": "珠光貼紙81x65/900張(有機農產品外箱貼)", "code": "Z01015", "unit": "", "refill": 1830, "category": "貼紙" },
+            "Z01016": { "name": "珠光貼紙60×70/2000張(履歷Eugenie優境生鮮Mia)", "code": "Z01016", "unit": "", "refill": 2000, "category": "貼紙" },
+            "Z01017": { "name": "熱感貼紙70×95/1900張(有機Eugenie優境生鮮Mia)", "code": "Z01017", "unit": "", "refill": 1300, "category": "貼紙" },
+            "Z01018": { "name": "熱感貼紙85x52/2000張(履歷絲瓜500gPLB二合一)", "code": "Z01018", "unit": "", "refill": null, "category": "貼紙" },
+            "Z01022": { "name": "珠光貼紙4.5x15/1000張(有機香菇260g)", "code": "Z01022", "unit": "", "refill": null, "category": "貼紙" },
+            "Z01024": { "name": "珠光貼紙70x55/2500張(好市多有機黑美人菇黑珍珠菇700g)", "code": "Z01024", "unit": "", "refill": 5000, "category": "貼紙" },
+            "Z01025": { "name": "珠光貼紙80x50/2020張(好市多有機杏鮑菇900g)", "code": "Z01025", "unit": "", "refill": null, "category": "貼紙" },
+            "Z01028": { "name": "熱感貼紙75x52/2050張(履歷香菇150g二合一)", "code": "Z01028", "unit": "", "refill": null, "category": "貼紙" },
+            
+            "Z02001": { "name": "PET透明盒250x182x75/400入(香菇600g)LJ1000/B153", "code": "Z02001", "unit": "", "refill": 6000, "category": "包裝托盤/盒" },
+            "Z02003": { "name": "PET透明盒200x175x75/660入(五福菇600g)LJ700/C277", "code": "Z02003", "unit": "", "refill": 110, "category": "包裝托盤/盒" },
+            "Z02004": { "name": "PP黑盒200x175x75/850入(香菇400g)LJ700/C277K-1", "code": "Z02004", "unit": "", "refill": 850, "category": "包裝托盤/盒" },
+            "Z02005": { "name": "PP黑盒230x170x48/500入(洋菇500g)洋菇盒C310K", "code": "Z02005", "unit": "", "refill": 100, "category": "包裝托盤/盒" },
+            "Z02006": { "name": "PP黑盒160x120x54/1200入(洋菇200g)B150K", "code": "Z02006", "unit": "", "refill": 600, "category": "包裝托盤/盒" },
+            "Z02007": { "name": "PET透明盒132x132x45/1800入803D", "code": "Z02007", "unit": "", "refill": 27000, "category": "包裝托盤/盒" },
+            "Z02008": { "name": "PET透明盒165x128x70/1100入(香菇200g)B156", "code": "Z02008", "unit": "", "refill": 5500, "category": "包裝托盤/盒" },
+            "Z02011": { "name": "PET黑盒185x117x30/1000入(香菇150g)T26", "code": "Z02011", "unit": "", "refill": 100, "category": "包裝托盤/盒" },
+            "Z02013": { "name": "PLA黑盒180x180x30/600入(香草)杯架", "code": "Z02013", "unit": "", "refill": 600, "category": "包裝托盤/盒" },
+            "Z02014": { "name": "PET透明盒200x175x59/500入(鮑魚菇250g)LJ701", "code": "Z02014", "unit": "", "refill": null, "category": "包裝托盤/盒" },
+            "Z02018": { "name": "PET透明盒160x120x54/1800入(有機香菇150g)", "code": "Z02018", "unit": "", "refill": null, "category": "包裝托盤/盒" },
+            "Z02021": { "name": "PET透明盒183x128x45/1200入C129", "code": "Z02021", "unit": "", "refill": 3600, "category": "包裝托盤/盒" },
+            
+            "Z03001": { "name": "CPP320x210/100入(香草盆栽袋)", "code": "Z03001", "unit": "", "refill": 1000, "category": "包裝袋" },
+            "Z03004": { "name": "PE/290x117x60/8g(BIO有機杏鮑菇500g)", "code": "Z03004", "unit": "", "refill": null, "category": "包裝袋" },
+            "Z03005": { "name": "OPP/300x135x55/3g(有機黑木耳400g)", "code": "Z03005", "unit": "", "refill": 1000, "category": "包裝袋" },
+            "Z03006": { "name": "OPP/300x135x55/3g(履歷香菇350g)", "code": "Z03006", "unit": "", "refill": 1000, "category": "包裝袋" },
+            "Z03007": { "name": "PET12PE80/190x320x45/1500入(好市多有機銀耳夾鏈袋500g)", "code": "Z03007", "unit": "", "refill": 7000, "category": "包裝袋" },
+            "Z03008": { "name": "PE/360x185x62/13g(BIO有機杏鮑菇1kg)", "code": "Z03008", "unit": "", "refill": null, "category": "包裝袋" },
+            "Z03013": { "name": "PET12CPP80/420x250x60/500入(好市多有機黑美人菇黑珍珠菇手提夾鏈袋700g)", "code": "Z03013", "unit": "", "refill": 3000, "category": "包裝袋" },
+            
+            "Z04001": { "name": "PVC保鮮膜300/1000M/2入", "code": "Z04001", "unit": "", "refill": 2, "category": "保鮮膜" },
+            "Z04002": { "name": "PVC保鮮膜350/1000M/2入", "code": "Z04002", "unit": "", "refill": 10, "category": "保鮮膜" },
+            "Z04003": { "name": "PVC保鮮膜400/1000M/2入", "code": "Z04003", "unit": "", "refill": 10, "category": "保鮮膜" },
+            
+            "Z05001": { "name": "OPP透明445/25U/2000M", "code": "Z05001", "unit": "", "refill": 1, "category": "袋膜" },
+            "Z05004": { "name": "OPP435/25U/2000M(家樂福有機BIO)", "code": "Z05004", "unit": "", "refill": 3, "category": "袋膜" },
+            "Z05009": { "name": "OPP435/25U/2000M(全聯履歷新社農會200g)", "code": "Z05009", "unit": "", "refill": 3, "category": "袋膜" },
+            "Z05010": { "name": "OPP435/25U/2000M(綠園公版)", "code": "Z05010", "unit": "", "refill": 1, "category": "袋膜" },
+            "Z05011": { "name": "OPP435/25U/2000M(有機台朔)", "code": "Z05011", "unit": "", "refill": 1, "category": "袋膜" },
+            "Z05018": { "name": "OPP425/25U/2000M(全聯三面封素茵都市農場)", "code": "Z05018", "unit": "", "refill": 3, "category": "袋膜" },
+            "Z05023": { "name": "OPP380/25U/2000M(家樂福履歷PLB150g落料)", "code": "Z05023", "unit": "", "refill": 2, "category": "袋膜" },
+            "Z05030": { "name": "OPP435/25U/2000M(全聯履歷MW200g)", "code": "Z05030", "unit": "", "refill": 3, "category": "袋膜" },
+            "Z05031": { "name": "OPP435/25U/2000M(家樂福PLB150g履歷套印枕式)", "code": "Z05031", "unit": "", "refill": 3, "category": "袋膜" },
+            "Z05032": { "name": "OPP透明480/25U/2000M", "code": "Z05032", "unit": "", "refill": 1, "category": "袋膜" },
+            "Z05034": { "name": "OPP380/25U/2000M(好市多有機黑珍珠菇150g落料)", "code": "Z05034", "unit": "", "refill": 4, "category": "袋膜" },
+            "Z05035": { "name": "OPP470/25U/2000M(蕈優全聯杏鮑菇有機230g)", "code": "Z05035", "unit": "", "refill": 1, "category": "袋膜" },
+            "Z05036": { "name": "OPP530/25U/2000M(家樂福暖菇鍋物有機組合菇400g)", "code": "Z05036", "unit": "", "refill": 1, "category": "袋膜" },
+            "Z05039": { "name": "OPP針洞330/25U/2000M(家樂福有機櫛瓜500g)", "code": "Z05039", "unit": "", "refill": 2, "category": "袋膜" },
+            "Z05040": { "name": "OPP400/25U/2000M(家樂福履歷牛番茄500g)", "code": "Z05040", "unit": "", "refill": 2, "category": "袋膜" },
+            "Z05042": { "name": "OPP380/25U/2000M(家樂福有機落料)", "code": "Z05042", "unit": "", "refill": 2, "category": "袋膜" },
+            "Z05043": { "name": "OPP380/25U/2000M(家樂福履歷落料)", "code": "Z05043", "unit": "", "refill": 2, "category": "袋膜" },
+            
+            "Z07001": { "name": "袖套75x450(好市多履歷洋菇500g)", "code": "Z07001", "unit": "", "refill": 5000, "category": "袖套" },
+            "Z07006": { "name": "袖套65x500(家樂福BIO有機組合菇600g)", "code": "Z07006", "unit": "", "refill": 200, "category": "袖套" },
+            
+            "Z09001": { "name": "泡棉舒美布410x540x1", "code": "Z09001", "unit": "", "refill": 200, "category": "其他" },
+            
+            "Z06001": { "name": "彩盒陳列箱558x393x287/A愣(香菇)", "code": "Z06001", "unit": "", "refill": 320, "category": "紙箱" },
+            "Z06002": { "name": "彩盒陳列箱558x393x287/A愣(洋菇)", "code": "Z06002", "unit": "", "refill": 320, "category": "紙箱" },
+            "Z06003": { "name": "彩盒陳列箱558x393x287/A愣(銀耳)", "code": "Z06003", "unit": "", "refill": 320, "category": "紙箱" },
+            "Z06004": { "name": "彩盒陳列箱558x393x287/A愣(杏鮑菇)", "code": "Z06004", "unit": "", "refill": 320, "category": "紙箱" },
+            "Z06014": { "name": "彩盒陳列箱573x393x287/A愣(綠園公版)", "code": "Z06014", "unit": "", "refill": 320, "category": "紙箱" },
+            "Z06005": { "name": "牛皮紙箱475x345x201/A愣(全聯)", "code": "Z06005", "unit": "", "refill": 15, "category": "紙箱" },
+            "Z06008": { "name": "牛皮紙箱626x384x346/AB愣(理貨物流箱)", "code": "Z06008", "unit": "", "refill": 200, "category": "紙箱" }
+        };
+
+        let replenishStandards = {};
+        let originalRows = [];
+        let processedRows = [];
+        let currentFilter = 'replenish'; 
+        let searchQuery = '';
+        let isUnlocked = false;
+        let pendingAction = null;
+
+        // ==========================================
+        // 🔒 將函數掛載至 window 全域作用域
+        // ==========================================
+        window.editStd = editStd;
+        window.deleteStd = deleteStd;
+        window.quickSetStd = quickSetStd;
+        window.switchFilterToAll = switchFilterToAll;
+        window.renderSettingsList = renderSettingsList;
+        window.showToast = showToast;
+        window.setActiveTab = setActiveTab;
+        window.openPasswordModal = openPasswordModal;
+        window.closePasswordModal = closePasswordModal;
+
+        // ==========================================
+        // 3. 初始化加載與 DOM 事件註冊
+        // ==========================================
+        initClock();
+        loadStandardsFromStorage();
+
+        window.addEventListener('DOMContentLoaded', () => {
+            const defaultUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRqhij3tYIKCP5YwznxO0uCrthJDE09xE8pOG76mejZDrH6xFyPRndBKnx9UBwQmnxxyvcE9vUUZJqk/pub?gid=322034433&single=true&output=csv";
+            const savedUrl = localStorage.getItem('google_sheet_csv_url_package');
+            const finalUrl = savedUrl || defaultUrl;
+            
+            const cloudUrlInput = document.getElementById('cloudUrlInput');
+            if (cloudUrlInput) cloudUrlInput.value = finalUrl;
+            
+            if (window.lucide) window.lucide.createIcons();
+            autoLoadBackupJson();
+            autoFetchCloudOnLoad(finalUrl);
+            
+            // DOM 事件綁定 (確保 DOM 元素存在後才綁定)
+            const tabInventory = document.getElementById('tabInventory');
+            const tabSettings = document.getElementById('tabSettings');
+            const btnLockSettings = document.getElementById('btnLockSettings');
+            const btnCancelPassword = document.getElementById('btnCancelPassword');
+            const passwordForm = document.getElementById('passwordForm');
+            const btnResetToDefaults = document.getElementById('btnResetToDefaults');
+            const btnTriggerImportBackup = document.getElementById('btnTriggerImportBackup');
+            const backupFileInput = document.getElementById('backupFileInput');
+            const btnImportStd = document.getElementById('btnImportStd');
+            const importStdFile = document.getElementById('importStdFile');
+            const stdForm = document.getElementById('stdForm');
+            const btnResetForm = document.getElementById('btnResetForm');
+            const searchStdInput = document.getElementById('searchStdInput');
+            const btnClearAllStds = document.getElementById('btnClearAllStds');
+            const btnSyncCloud = document.getElementById('btnSyncCloud');
+            const dropZone = document.getElementById('dropZone');
+            const fileInput = document.getElementById('fileInput');
+            const btnAll = document.getElementById('btnAll');
+            const btnReplenishOnly = document.getElementById('btnReplenishOnly');
+            const btnPurchaseOnly = document.getElementById('btnPurchaseOnly');
+            const btnNoStdOnly = document.getElementById('btnNoStdOnly');
+            const searchInputEl = document.getElementById('searchInput');
+
+            if (tabInventory) {
+                tabInventory.addEventListener('click', () => {
+                    setActiveTab('inventory');
+                });
+            }
+
+            if (tabSettings) {
+                tabSettings.addEventListener('click', () => {
+                    if (isUnlocked) {
+                        setActiveTab('settings');
+                        window.renderSettingsList();
+                    } else {
+                        openPasswordModal(() => {
+                            setActiveTab('settings');
+                            window.renderSettingsList();
+                        });
+                    }
+                });
+            }
+
+            if (btnLockSettings) {
+                btnLockSettings.addEventListener('click', () => {
+                    isUnlocked = false;
+                    setActiveTab('inventory');
+                    showToast('已安全鎖定補貨標準管理頁面！', 'lock', 'text-slate-400');
+                });
+            }
+
+            if (btnCancelPassword) {
+                btnCancelPassword.addEventListener('click', () => {
+                    closePasswordModal();
+                    showToast('已取消密碼驗證。', 'shield-alert', 'text-amber-500');
+                });
+            }
+
+            if (passwordForm) {
+                passwordForm.addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    const inputSettingsPassword = document.getElementById('inputSettingsPassword');
+                    const passwordErrorMsg = document.getElementById('passwordErrorMsg');
+                    const passwordModalCard = document.getElementById('passwordModalCard');
+                    
+                    const inputVal = inputSettingsPassword ? inputSettingsPassword.value : '';
+                    if (inputVal === SETTINGS_PASSWORD) {
+                        isUnlocked = true;
+                        if (passwordErrorMsg) passwordErrorMsg.classList.add('hidden');
+                        closePasswordModal();
+                        showToast('密碼驗證成功，已解鎖補貨標準管理中心。', 'shield-check', 'text-emerald-400');
+                        if (typeof pendingAction === 'function') {
+                            pendingAction();
+                        }
+                    } else {
+                        if (passwordErrorMsg) passwordErrorMsg.classList.remove('hidden');
+                        if (inputSettingsPassword) {
+                            inputSettingsPassword.value = '';
+                            inputSettingsPassword.focus();
+                        }
+                        if (passwordModalCard) {
+                            passwordModalCard.classList.add('animate-bounce');
+                            setTimeout(() => passwordModalCard.classList.remove('animate-bounce'), 500);
+                        }
+                    }
+                });
+            }
+
+            if (btnResetToDefaults) {
+                btnResetToDefaults.addEventListener('click', () => {
+                    if (confirm('確定要一鍵重置，同步回網頁預設的包材最低標準嗎？您的自訂變更將會被覆蓋！')) {
+                        replenishStandards = JSON.parse(JSON.stringify(DEFAULT_STANDARDS));
+                        saveStandardsToStorage();
+                        window.renderSettingsList();
+                        showToast('已成功強制同步本機快取，重置為預設標準！', 'rotate-ccw', 'text-emerald-400');
+                        if (originalRows.length > 0) {
+                            analyzeInventory();
+                        }
+                    }
+                });
+            }
+
+            if (btnTriggerImportBackup) {
+                btnTriggerImportBackup.addEventListener('click', () => {
+                    if (backupFileInput) backupFileInput.click();
+                });
+            }
+
+            if (backupFileInput) {
+                backupFileInput.addEventListener('change', (e) => {
+                    if (e.target.files.length > 0) {
+                        const file = e.target.files[0];
+                        const reader = new FileReader();
+                        reader.onload = function(evt) {
+                            try {
+                                const importedData = JSON.parse(evt.target.result);
+                                let validCount = 0;
+                                for (let key in importedData) {
+                                    let item = importedData[key];
+                                    if (item && item.code && item.refill !== undefined) {
+                                        const cleanCode = String(item.code).toUpperCase().trim();
+                                        replenishStandards[cleanCode] = {
+                                            name: item.name,
+                                            code: cleanCode,
+                                            unit: item.unit || '',
+                                            refill: parseFloat(item.refill) || 0,
+                                            category: item.category || '包材'
+                                        };
+                                        validCount++;
+                                    }
+                                }
+                                if (validCount > 0) {
+                                    saveStandardsToStorage();
+                                    window.renderSettingsList();
+                                    showToast(`還原成功！已成功同步匯入 ${validCount} 個包材補貨門檻。`, 'shield-check', 'text-emerald-400');
+                                    if (originalRows.length > 0) {
+                                        analyzeInventory();
+                                    }
+                                } else {
+                                    showToast('匯入失敗：這不是正確的補貨標準備份檔案格式。', 'alert-circle', 'text-rose-400');
+                                }
+                            } catch (err) {
+                                showToast(`還原解析失敗: ${err.message}`, 'alert-circle', 'text-rose-400');
+                            }
+                        };
+                        reader.readAsText(file);
+                        backupFileInput.value = '';
+                    }
+                });
+            }
+
+            if (btnImportStd) {
+                btnImportStd.addEventListener('click', () => {
+                    if (importStdFile) importStdFile.click();
+                });
+            }
+
+            if (importStdFile) {
+                importStdFile.addEventListener('change', (e) => {
+                    if (e.target.files.length > 0) {
+                        handleFileSelect(e.target.files[0]); // 共用上傳邏輯處理 Excel 學習
+                    }
+                });
+            }
+
+            if (stdForm) {
+                stdForm.addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    const formItemCode = document.getElementById('formItemCode');
+                    const formUnit = document.getElementById('formUnit');
+                    const formItemName = document.getElementById('formItemName');
+                    const formRefill = document.getElementById('formRefill');
+
+                    const code = formItemCode ? formItemCode.value.trim().toUpperCase() : '';
+                    const unit = formUnit ? formUnit.value.trim() : '';
+                    const name = formItemName ? formItemName.value.trim() : '';
+                    const val = formRefill ? parseFloat(formRefill.value) : NaN;
+
+                    if (!code || isNaN(val)) return;
+
+                    replenishStandards[code] = {
+                        name: name || (replenishStandards[code] ? replenishStandards[code].name : '未命名包材'),
+                        code: code,
+                        unit: unit,
+                        refill: val,
+                        category: '包材'
+                    };
+
+                    saveStandardsToStorage();
+                    window.renderSettingsList();
+                    stdForm.reset();
+                    if (formItemCode) formItemCode.removeAttribute('readonly');
+                    if (formUnit) formUnit.removeAttribute('readonly');
+                    document.getElementById('formTitle').textContent = "新增/修改補貨標準";
+                    showToast(`成功儲存 [${code}] 最低庫存標準為 ${val}`, 'check', 'text-emerald-400');
+                    
+                    if (originalRows.length > 0) {
+                        analyzeInventory();
+                    }
+                });
+            }
+
+            if (btnResetForm) {
+                btnResetForm.addEventListener('click', () => {
+                    if (stdForm) stdForm.reset();
+                    document.getElementById('formTitle').textContent = "新增/修改補貨標準";
+                    const formItemCode = document.getElementById('formItemCode');
+                    const formUnit = document.getElementById('formUnit');
+                    if (formItemCode) formItemCode.removeAttribute('readonly');
+                    if (formUnit) formUnit.removeAttribute('readonly');
+                });
+            }
+
+            if (searchStdInput) {
+                searchStdInput.addEventListener('input', () => {
+                    window.renderSettingsList();
+                });
+            }
+
+            if (btnClearAllStds) {
+                btnClearAllStds.addEventListener('click', () => {
+                    if (confirm('警告！這將會清除您本機所有的最低庫存標準（包含預設包材）。確定要全部清空嗎？')) {
+                        replenishStandards = {};
+                        saveStandardsToStorage();
+                        window.renderSettingsList();
+                        showToast('已清空所有補貨標準！', 'trash', 'text-rose-400');
+                        if (originalRows.length > 0) {
+                            analyzeInventory();
+                        }
+                    }
+                });
+            }
+
+            if (btnSyncCloud) {
+                btnSyncCloud.addEventListener('click', () => {
+                    const cloudUrlInput = document.getElementById('cloudUrlInput');
+                    const targetUrl = cloudUrlInput ? cloudUrlInput.value.trim() : '';
+                    
+                    if (!targetUrl) {
+                        showToast('請先貼上有效的 Google Sheet CSV 發佈網址或 ERP API 網址！', 'alert-circle', 'text-rose-400');
+                        if (cloudUrlInput) cloudUrlInput.focus();
+                        return;
+                    }
+
+                    localStorage.setItem('google_sheet_csv_url_package', targetUrl);
+                    const dataSourceTag = document.getElementById('dataSourceTag');
+                    const loadingStatusText = document.getElementById('loadingStatusText');
+                    if (dataSourceTag) dataSourceTag.textContent = `* 數據載入來源: 🌐 Google Sheet 雲端實時更新`;
+                    if (loadingStatusText) loadingStatusText.textContent = "正在與 Google Sheet 建立加密連線、拉取最新包材結餘中...";
+                    showLoading(true);
+
+                    const busterUrl = targetUrl + (targetUrl.includes('?') ? '&' : '?') + 't=' + new Date().getTime();
+
+                    fetch(busterUrl, { cache: 'no-store' })
+                        .then(response => {
+                            if (!response.ok) {
+                                throw new Error('無法讀取該網址，請確認您的 Google 試算表是否已公開且格式正確。');
+                            }
+                            return response.text();
+                        })
+                        .then(csvText => {
+                            parseCSV(csvText);
+                        })
+                        .catch(err => {
+                            console.error(err);
+                            showLoading(false);
+                            const emptyState = document.getElementById('emptyState');
+                            if (emptyState) emptyState.classList.remove('hidden');
+                            showToast(`同步失敗: ${err.message}`, 'alert-circle', 'text-rose-400');
+                        });
+                });
+            }
+
+            // Drag and Drop Upload logic
+            if (dropZone && fileInput) {
+                dropZone.addEventListener('click', () => fileInput.click());
+                
+                dropZone.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    dropZone.classList.add('border-emerald-400', 'bg-emerald-50/50');
+                });
+
+                dropZone.addEventListener('dragleave', () => {
+                    dropZone.classList.remove('border-emerald-400', 'bg-emerald-50/50');
+                });
+
+                dropZone.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    dropZone.classList.remove('border-emerald-400', 'bg-emerald-50/50');
+                    if (e.dataTransfer.files.length > 0) {
+                        handleFileSelect(e.dataTransfer.files[0]);
+                    }
+                });
+
+                fileInput.addEventListener('change', (e) => {
+                    if (e.target.files.length > 0) {
+                        handleFileSelect(e.target.files[0]);
+                    }
+                });
+            }
+
+            if (btnAll) {
+                btnAll.addEventListener('click', () => {
+                    currentFilter = 'all';
+                    updateFilterButtons('all');
+                    checkCelebration();
+                    renderTable();
+                });
+            }
+
+            if (btnReplenishOnly) {
+                btnReplenishOnly.addEventListener('click', () => {
+                    currentFilter = 'replenish';
+                    updateFilterButtons('replenish');
+                    checkCelebration();
+                    renderTable();
+                });
+            }
+
+            if (btnPurchaseOnly) {
+                btnPurchaseOnly.addEventListener('click', () => {
+                    currentFilter = 'purchase';
+                    updateFilterButtons('purchase');
+                    checkCelebration();
+                    renderTable();
+                });
+            }
+
+            if (btnNoStdOnly) {
+                btnNoStdOnly.addEventListener('click', () => {
+                    currentFilter = 'no_std';
+                    updateFilterButtons('no_std');
+                    checkCelebration();
+                    renderTable();
+                });
+            }
+
+            if (searchInputEl) {
+                searchInputEl.addEventListener('input', () => {
+                    renderTable();
+                });
+            }
+        });
+    </script>
+</body>
+</html>
