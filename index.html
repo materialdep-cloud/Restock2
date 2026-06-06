@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>包材庫存與智慧補貨檢視系統</title>
+    <title>二廠包材庫存與智慧補貨檢視系統</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Lucide Icons -->
@@ -74,15 +74,15 @@
                         <ul class="space-y-2.5 text-sm text-slate-600">
                             <li class="flex items-start">
                                 <span class="text-emerald-500 mr-1.5">•</span>
-                                <span><b>生產倉主動監控：</b>系統會加總 <b>綠園二廠/包材倉</b> 與 <b>綠園二廠/常溫區</b> 的庫存量與補貨標準比對。</span>
+                                <span><b>二廠包材倉主動監控：</b>系統會加總 <b>綠園二廠/包材倉</b> 與 <b>綠園二廠/常溫區</b> 的庫存量與補貨標準比對。</span>
                             </li>
                             <li class="flex items-start">
                                 <span class="text-emerald-500 mr-1.5">•</span>
-                                <span><b>內場補貨判定：</b>當生產倉不足，但後援倉（車棚1/車棚2/63-5常溫）有貨，會亮<b>紅底</b>提示內場補貨。</span>
+                                <span><b>內場補貨判定：</b>當二廠包材倉不足，但後援倉（車棚1/車棚2/63-5常溫）有貨，會亮<b>紅底</b>提示內場補貨。</span>
                             </li>
                             <li class="flex items-start">
                                 <span class="text-emerald-500 mr-1.5">•</span>
-                                <span><b>緊急採購判定：</b>若生產倉不足，且所有後援倉都完全沒貨，則會亮<b>紫底</b>提示需通知採購！</span>
+                                <span><b>緊急採購判定：</b>若二廠包材倉不足，且所有後援倉都完全沒貨，則會亮<b>紫底</b>提示需通知採購！</span>
                             </li>
                         </ul>
                     </div>
@@ -1272,7 +1272,7 @@
                     } else if (row.stock < row.refill) {
                         statusBadge = `
                             <span class="inline-flex items-center px-2 py-1 rounded bg-slate-200 text-slate-800 text-xs font-medium">
-                                生產倉不足但後援無貨
+                                二廠包材倉不足但後援無貨
                             </span>
                         `;
                     } else {
