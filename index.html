@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>二廠包材庫存與智慧補貨檢視系統</title>
+    <title>包材庫存與智慧補貨檢視系統</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Lucide Icons -->
@@ -74,15 +74,15 @@
                         <ul class="space-y-2.5 text-sm text-slate-600">
                             <li class="flex items-start">
                                 <span class="text-emerald-500 mr-1.5">•</span>
-                                <span><b>二廠包材倉主動監控：</b>系統會加總 <b>綠園二廠/包材倉</b> 與 <b>綠園二廠/常溫區</b> 的庫存量與補貨標準比對。</span>
+                                <span><b>生產倉主動監控：</b>系統會加總 <b>綠園二廠/包材倉</b> 與 <b>綠園二廠/常溫區</b> 的庫存量與補貨標準比對。</span>
                             </li>
                             <li class="flex items-start">
                                 <span class="text-emerald-500 mr-1.5">•</span>
-                                <span><b>內場補貨判定：</b>當二廠包材倉不足，但後援倉（車棚1/車棚2/63-5常溫）有貨，會亮<b>紅底</b>提示內場補貨。</span>
+                                <span><b>內場補貨判定：</b>當生產倉不足，但後援倉（車棚1/車棚2/63-5常溫）有貨，會亮<b>紅底</b>提示內場補貨。</span>
                             </li>
                             <li class="flex items-start">
                                 <span class="text-emerald-500 mr-1.5">•</span>
-                                <span><b>緊急採購判定：</b>若二廠包材倉不足，且所有後援倉都完全沒貨，則會亮<b>紫底</b>提示需通知採購！</span>
+                                <span><b>緊急採購判定：</b>若生產倉不足，且所有後援倉都完全沒貨，則會亮<b>紫底</b>提示需通知採購！</span>
                             </li>
                         </ul>
                     </div>
@@ -101,7 +101,7 @@
                         </div>
                         <div id="dropZone" class="border-2 border-dashed border-slate-200 hover:border-emerald-400 rounded-xl p-6 text-center cursor-pointer transition-colors group flex-grow flex flex-col justify-center items-center">
                             <input type="file" id="fileInput" accept=".xlsx, .xls, .csv" class="hidden">
-                            <div class="p-2.5 bg-emerald-50 rounded-full text-emerald-500 group-hover:scale-110 transition-transform mb-2">
+                            <div class="p-2.5 bg-indigo-50 rounded-full text-indigo-500 group-hover:scale-110 transition-transform mb-2">
                                 <i data-lucide="upload-cloud" class="w-6 h-6"></i>
                             </div>
                             <p class="text-xs font-semibold text-slate-700">拖曳或點選上傳 Excel / CSV</p>
@@ -323,7 +323,7 @@
                         </div>
                         <div>
                             <label class="block text-xs font-medium text-slate-500 mb-1">品項名稱 (選填)</label>
-                            <input type="text" id="formItemName" placeholder="例如：珠光空白貼紙30x20" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                            <input type="text" id="formItemName" placeholder="placeholder" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
                         </div>
                         <div>
                             <label class="block text-xs font-medium text-slate-500 mb-1">最低庫存量 (必填)</label>
@@ -475,6 +475,108 @@
 
     <!-- 💡 唯一聚合 JavaScript 控制區 -->
     <script>
+        // ==========================================
+        // 1. 全域變數定義
+        // ==========================================
+        const CODE_VERSION = "2026.06.06_v5.3"; // 更新版本號以強制覆蓋快取
+        const SETTINGS_PASSWORD = "1021";
+        
+        const MAIN_WAREHOUSES = [
+            "綠園二廠/包材倉",
+            "綠園二廠/常溫區"
+        ];
+        
+        const BACKUP_WAREHOUSES = [
+            "車棚1倉/包材倉",
+            "車棚2倉/久儲包材倉",
+            "63-5倉/常溫料架區"
+        ];
+
+        const ALLOWED_WAREHOUSES = [...MAIN_WAREHOUSES, ...BACKUP_WAREHOUSES];
+
+        const DEFAULT_STANDARDS = {
+            "Z01001": { "name": "珠光空白貼紙30x20/2000張(銀耳、五福)", "code": "Z01001", "unit": "", "refill": 4000, "category": "貼紙" },
+            "Z01002": { "name": "珠光空白貼紙35x25/2000張(香草)", "code": "Z01002", "unit": "", "refill": 8000, "category": "貼紙" },
+            "Z01003": { "name": "珠光空白貼紙60x50/2000張(圓盤綜合菇)", "code": "Z01003", "unit": "", "refill": null, "category": "貼紙" },
+            "Z01005": { "name": "熱感貼紙70x40/1900張(Green Living有機)", "code": "Z01005", "unit": "", "refill": 9500, "category": "貼紙" },
+            "Z01007": { "name": "熱感貼紙75x42/3000張(產銷履歷)", "code": "Z01007", "unit": "", "refill": 48000, "category": "貼紙" },
+            "Z01012": { "name": "熱感貼紙94x64/3000張(履歷洋菇PLB二合一)", "code": "Z01012", "unit": "", "refill": 6000, "category": "貼紙" },
+            "Z01013": { "name": "熱感貼紙83x64/2000張(履歷洋菇CQL二合一)", "code": "Z01013", "unit": "", "refill": null, "category": "貼紙" },
+            "Z01014": { "name": "珠光貼紙55x55/3000張(履歷香菇貼紙)", "code": "Z01014", "unit": "", "refill": 24000, "category": "貼紙" },
+            "Z01015": { "name": "珠光貼紙81x65/900張(有機農產品外箱貼)", "code": "Z01015", "unit": "", "refill": 1830, "category": "貼紙" },
+            "Z01016": { "name": "珠光貼紙60×70/2000張(履歷Eugenie優境生鮮Mia)", "code": "Z01016", "unit": "", "refill": 2000, "category": "貼紙" },
+            "Z01017": { "name": "熱感貼紙70×95/1900張(有機Eugenie優境生鮮Mia)", "code": "Z01017", "unit": "", "refill": 1300, "category": "貼紙" },
+            "Z01018": { "name": "熱感貼紙85x52/2000張(履歷絲瓜500gPLB二合一)", "code": "Z01018", "unit": "", "refill": null, "category": "貼紙" },
+            "Z01022": { "name": "珠光貼紙4.5x15/1000張(有機香菇260g)", "code": "Z01022", "unit": "", "refill": null, "category": "貼紙" },
+            "Z01024": { "name": "珠光貼紙70x55/2500張(好市多有機黑美人菇黑珍珠菇700g)", "code": "Z01024", "unit": "", "refill": 5000, "category": "貼紙" },
+            "Z01025": { "name": "珠光貼紙80x50/2020張(好市多有機杏鮑菇900g)", "code": "Z01025", "unit": "", "refill": null, "category": "貼紙" },
+            "Z01028": { "name": "熱感貼紙75x52/2050張(履歷香菇150g二合一)", "code": "Z01028", "unit": "", "refill": null, "category": "貼紙" },
+            
+            "Z02001": { "name": "PET透明盒250x182x75/400入(香菇600g)LJ1000/B153", "code": "Z02001", "unit": "", "refill": 6000, "category": "包裝托盤/盒" },
+            "Z02003": { "name": "PET透明盒200x175x75/660入(五福菇600g)LJ700/C277", "code": "Z02003", "unit": "", "refill": 110, "category": "包裝托盤/盒" },
+            "Z02004": { "name": "PP黑盒200x175x75/850入(香菇400g)LJ700/C277K-1", "code": "Z02004", "unit": "", "refill": 850, "category": "包裝托盤/盒" },
+            "Z02005": { "name": "PP黑盒230x170x48/500入(洋菇500g)洋菇盒C310K", "code": "Z02005", "unit": "", "refill": 100, "category": "包裝托盤/盒" },
+            "Z02006": { "name": "PP黑盒160x120x54/1200入(洋菇200g)B150K", "code": "Z02006", "unit": "", "refill": 600, "category": "包裝托盤/盒" },
+            "Z02007": { "name": "PET透明盒132x132x45/1800入803D", "code": "Z02007", "unit": "", "refill": 27000, "category": "包裝托盤/盒" },
+            "Z02008": { "name": "PET透明盒165x128x70/1100入(香菇200g)B156", "code": "Z02008", "unit": "", "refill": 5500, "category": "包裝托盤/盒" },
+            "Z02011": { "name": "PET黑盒185x117x30/1000入(香菇150g)T26", "code": "Z02011", "unit": "", "refill": 100, "category": "包裝托盤/盒" },
+            "Z02013": { "name": "PLA黑盒180x180x30/600入(香草)杯架", "code": "Z02013", "unit": "", "refill": 600, "category": "包裝托盤/盒" },
+            "Z02014": { "name": "PET透明盒200x175x59/500入(鮑魚菇250g)LJ701", "code": "Z02014", "unit": "", "refill": null, "category": "包裝托盤/盒" },
+            "Z02018": { "name": "PET透明盒160x120x54/1800入(有機香菇150g)", "code": "Z02018", "unit": "", "refill": null, "category": "包裝托盤/盒" },
+            "Z02021": { "name": "PET透明盒183x128x45/1200入C129", "code": "Z02021", "unit": "", "refill": 3600, "category": "包裝托盤/盒" },
+            
+            "Z03001": { "name": "CPP320x210/100入(香草盆栽袋)", "code": "Z03001", "unit": "", "refill": 1000, "category": "包裝袋" },
+            "Z03004": { "name": "PE/290x117x60/8g(BIO有機杏鮑菇500g)", "code": "Z03004", "unit": "", "refill": null, "category": "包裝袋" },
+            "Z03005": { "name": "OPP/300x135x55/3g(有機黑木耳400g)", "code": "Z03005", "unit": "", "refill": 1000, "category": "包裝袋" },
+            "Z03006": { "name": "OPP/300x135x55/3g(履歷香菇350g)", "code": "Z03006", "unit": "", "refill": 1000, "category": "包裝袋" },
+            "Z03007": { "name": "PET12PE80/190x320x45/1500入(好市多有機銀耳夾鏈袋500g)", "code": "Z03007", "unit": "", "refill": 7000, "category": "包裝袋" },
+            "Z03008": { "name": "PE/360x185x62/13g(BIO有機杏鮑菇1kg)", "code": "Z03008", "unit": "", "refill": null, "category": "包裝袋" },
+            "Z03013": { "name": "PET12CPP80/420x250x60/500入(好市多有機黑美人菇黑珍珠菇手提夾鏈袋700g)", "code": "Z03013", "unit": "", "refill": 3000, "category": "包裝袋" },
+            
+            "Z04001": { "name": "PVC保鮮膜300/1000M/2入", "code": "Z04001", "unit": "", "refill": 2, "category": "保鮮膜" },
+            "Z04002": { "name": "PVC保鮮膜350/1000M/2入", "code": "Z04002", "unit": "", "refill": 10, "category": "保鮮膜" },
+            "Z04003": { "name": "PVC保鮮膜400/1000M/2入", "code": "Z04003", "unit": "", "refill": 10, "category": "保鮮膜" },
+            
+            "Z05001": { "name": "OPP透明445/25U/2000M", "code": "Z05001", "unit": "", "refill": 1, "category": "袋膜" },
+            "Z05004": { "name": "OPP435/25U/2000M(家樂福有機BIO)", "code": "Z05004", "unit": "", "refill": 3, "category": "袋膜" },
+            "Z05009": { "name": "OPP435/25U/2000M(全聯履歷新社農會200g)", "code": "Z05009", "unit": "", "refill": 3, "category": "袋膜" },
+            "Z05010": { "name": "OPP435/25U/2000M(綠園公版)", "code": "Z05010", "unit": "", "refill": 1, "category": "袋膜" },
+            "Z05011": { "name": "OPP435/25U/2000M(有機台朔)", "code": "Z05011", "unit": "", "refill": 1, "category": "袋膜" },
+            "Z05018": { "name": "OPP425/25U/2000M(全聯三面封素茵都市農場)", "code": "Z05018", "unit": "", "refill": 3, "category": "袋膜" },
+            "Z05023": { "name": "OPP380/25U/2000M(家樂福履歷PLB150g落料)", "code": "Z05023", "unit": "", "refill": 2, "category": "袋膜" },
+            "Z05030": { "name": "OPP435/25U/2000M(全聯履歷MW200g)", "code": "Z05030", "unit": "", "refill": 3, "category": "袋膜" },
+            "Z05031": { "name": "OPP435/25U/2000M(家樂福PLB150g履歷套印枕式)", "code": "Z05031", "unit": "", "refill": 3, "category": "袋膜" },
+            "Z05032": { "name": "OPP透明480/25U/2000M", "code": "Z05032", "unit": "", "refill": 1, "category": "袋膜" },
+            "Z05034": { "name": "OPP380/25U/2000M(好市多有機黑珍珠菇150g落料)", "code": "Z05034", "unit": "", "refill": 4, "category": "袋膜" },
+            "Z05035": { "name": "OPP470/25U/2000M(蕈優全聯杏鮑菇有機230g)", "code": "Z05035", "unit": "", "refill": 1, "category": "袋膜" },
+            "Z05036": { "name": "OPP530/25U/2000M(家樂福暖菇鍋物有機組合菇400g)", "code": "Z05036", "unit": "", "refill": 1, "category": "袋膜" },
+            "Z05039": { "name": "OPP針洞330/25U/2000M(家樂福有機櫛瓜500g)", "code": "Z05039", "unit": "", "refill": 2, "category": "袋膜" },
+            "Z05040": { "name": "OPP400/25U/2000M(家樂福履歷牛番茄500g)", "code": "Z05040", "unit": "", "refill": 2, "category": "袋膜" },
+            "Z05042": { "name": "OPP380/25U/2000M(家樂福有機落料)", "code": "Z05042", "unit": "", "refill": 2, "category": "袋膜" },
+            "Z05043": { "name": "OPP380/25U/2000M(家樂福履歷落料)", "code": "Z05043", "unit": "", "refill": 2, "category": "袋膜" },
+            
+            "Z07001": { "name": "袖套75x450(好市多履歷洋菇500g)", "code": "Z07001", "unit": "", "refill": 5000, "category": "袖套" },
+            "Z07006": { "name": "袖套65x500(家樂福BIO有機組合菇600g)", "code": "Z07006", "unit": "", "refill": 200, "category": "袖套" },
+            
+            "Z09001": { "name": "泡棉舒美布410x540x1", "code": "Z09001", "unit": "", "refill": 200, "category": "其他" },
+            
+            "Z06001": { "name": "彩盒陳列箱558x393x287/A愣(香菇)", "code": "Z06001", "unit": "", "refill": 320, "category": "紙箱" },
+            "Z06002": { "name": "彩盒陳列箱558x393x287/A愣(洋菇)", "code": "Z06002", "unit": "", "refill": 320, "category": "紙箱" },
+            "Z06003": { "name": "彩盒陳列箱558x393x287/A愣(銀耳)", "code": "Z06003", "unit": "", "refill": 320, "category": "紙箱" },
+            "Z06004": { "name": "彩盒陳列箱558x393x287/A愣(杏鮑菇)", "code": "Z06004", "unit": "", "refill": 320, "category": "紙箱" },
+            "Z06014": { "name": "彩盒陳列箱573x393x287/A愣(綠園公版)", "code": "Z06014", "unit": "", "refill": 320, "category": "紙箱" },
+            "Z06005": { "name": "牛皮紙箱475x345x201/A愣(全聯)", "code": "Z06005", "unit": "", "refill": 15, "category": "紙箱" },
+            "Z06008": { "name": "牛皮紙箱626x384x346/AB愣(理貨物流箱)", "code": "Z06008", "unit": "", "refill": 200, "category": "紙箱" }
+        };
+
+        let replenishStandards = {};
+        let originalRows = [];
+        let processedRows = [];
+        let currentFilter = 'replenish'; 
+        let searchQuery = '';
+        let isUnlocked = false;
+        let pendingAction = null;
+
         // ==========================================
         // 2. 核心底層與資料處理函數 (置頂宣告，防止 TDZ)
         // ==========================================
@@ -913,9 +1015,11 @@
             }
         }
 
+        // 🚀 核心極致優化：整合五倉智慧比對邏輯，並【主動補上 0 庫存斷檔漏報】
         function analyzeInventory() {
             const inventoryLookup = {};
             
+            // 1. 建立各品項在各個倉庫的實際在庫字典
             originalRows.forEach(row => {
                 const cleanCode = String(row.itemCode).toUpperCase().trim();
                 if (!inventoryLookup[cleanCode]) {
@@ -924,7 +1028,46 @@
                 inventoryLookup[cleanCode][row.warehouse] = (inventoryLookup[cleanCode][row.warehouse] || 0) + row.stock;
             });
 
-            processedRows = originalRows.map(row => {
+            // 2. 防漏空庫存補償機制：找出有設定標準，但 CSV 裡面「完全沒有主倉(綠園二廠)」資料的品項
+            const mainWarehouseRows = new Set();
+            originalRows.forEach(row => {
+                if (MAIN_WAREHOUSES.includes(row.warehouse)) {
+                    mainWarehouseRows.add(String(row.itemCode).toUpperCase().trim());
+                }
+            });
+
+            const allRowsToAnalyze = [...originalRows];
+
+            for (let stdKey in replenishStandards) {
+                const stdItem = replenishStandards[stdKey];
+                if (stdItem && stdItem.refill !== null && stdItem.refill !== undefined) {
+                    const cleanStdCode = String(stdItem.code).toUpperCase().trim();
+                    
+                    // 如果這個品項在 CSV 裡「完全沒有主倉紀錄」（代表主倉庫存是0，被 ERP 省略匯出了）
+                    if (!mainWarehouseRows.has(cleanStdCode)) {
+                        // 強制產生一筆主倉為 0 的虛擬紀錄，保證系統必定會對它進行缺貨判定！
+                        allRowsToAnalyze.push({
+                            category: stdItem.category || "包材",
+                            itemCode: stdItem.code,
+                            itemName: stdItem.name,
+                            unit: stdItem.unit || "通用",
+                            warehouse: "綠園二廠/包材倉", // 注入主倉代表
+                            stock: 0,
+                            isVirtual: true
+                        });
+                        
+                        if (!inventoryLookup[cleanStdCode]) {
+                            inventoryLookup[cleanStdCode] = {};
+                        }
+                        if (inventoryLookup[cleanStdCode]["綠園二廠/包材倉"] === undefined) {
+                            inventoryLookup[cleanStdCode]["綠園二廠/包材倉"] = 0;
+                        }
+                    }
+                }
+            }
+
+            // 3. 開始進行缺貨判定
+            processedRows = allRowsToAnalyze.map(row => {
                 let needReplenish = false;
                 let needPurchase = false;
                 let isNoStandard = false;
@@ -939,12 +1082,14 @@
                     displayName = stdItem.name;
                 }
 
+                // 只有「主倉資料列」才會進行警戒判定 (剛剛虛擬的0庫存列也會走到這裡)
                 if (MAIN_WAREHOUSES.includes(row.warehouse)) {
                     if (refillLimit !== null) {
                         const stockInFactory1 = inventoryLookup[cleanCode]["綠園二廠/包材倉"] || 0;
                         const stockInFactory2 = inventoryLookup[cleanCode]["綠園二廠/常溫區"] || 0;
                         const totalMainStock = stockInFactory1 + stockInFactory2;
 
+                        // 如果主倉庫存低於標準
                         if (totalMainStock < refillLimit) {
                             const stockInCarport1 = inventoryLookup[cleanCode]["車棚1倉/包材倉"] || 0;
                             const stockInCarport2 = inventoryLookup[cleanCode]["車棚2倉/久儲包材倉"] || 0;
@@ -965,6 +1110,7 @@
                                 }
                                 backupStockInfo = backups.join(' / ');
                             } else {
+                                // 🌟 所有後援倉也都沒有，觸發紫色採購警報！
                                 needPurchase = true; 
                             }
                         }
@@ -994,7 +1140,7 @@
             
             updateFilterButtons(currentFilter);
             checkCelebration();
-            showToast(`成功自動對應 ${originalRows.length} 筆包材五倉資料`, 'check', 'text-emerald-400');
+            showToast(`成功自動對應 ${originalRows.length} 筆實體資料與防漏空補償判定`, 'check', 'text-emerald-400');
         }
 
         function checkCelebration() {
@@ -1272,7 +1418,7 @@
                     } else if (row.stock < row.refill) {
                         statusBadge = `
                             <span class="inline-flex items-center px-2 py-1 rounded bg-slate-200 text-slate-800 text-xs font-medium">
-                                二廠包材倉不足但後援無貨
+                                生產倉不足但後援無貨
                             </span>
                         `;
                     } else {
@@ -1304,7 +1450,7 @@
                             ${row.warehouse}
                         </span>
                     </td>
-                    <td class="px-6 py-4 text-right font-mono font-extrabold text-[18px] tracking-tight ${row.needReplenish ? 'text-rose-600' : 'text-purple-600' ? 'text-purple-600' : 'text-slate-900'}">${row.stock.toLocaleString()}</td>
+                    <td class="px-6 py-4 text-right font-mono font-extrabold text-[18px] tracking-tight ${row.needReplenish ? 'text-rose-600' : row.needPurchase ? 'text-purple-600' : 'text-slate-900'}">${row.stock.toLocaleString()}</td>
                     <td class="px-6 py-4 text-right">${refillCell}</td>
                     <td class="px-6 py-4 text-center">${statusBadge}</td>
                 `;
@@ -1387,108 +1533,6 @@
         }
 
         // ==========================================
-        // 1. 全域變數定義
-        // ==========================================
-        const CODE_VERSION = "2026.06.06_v5.2"; 
-        const SETTINGS_PASSWORD = "1021";
-        
-        const MAIN_WAREHOUSES = [
-            "綠園二廠/包材倉",
-            "綠園二廠/常溫區"
-        ];
-        
-        const BACKUP_WAREHOUSES = [
-            "車棚1倉/包材倉",
-            "車棚2倉/久儲包材倉",
-            "63-5倉/常溫料架區"
-        ];
-
-        const ALLOWED_WAREHOUSES = [...MAIN_WAREHOUSES, ...BACKUP_WAREHOUSES];
-
-        const DEFAULT_STANDARDS = {
-            "Z01001": { "name": "珠光空白貼紙30x20/2000張(銀耳、五福)", "code": "Z01001", "unit": "", "refill": 4000, "category": "貼紙" },
-            "Z01002": { "name": "珠光空白貼紙35x25/2000張(香草)", "code": "Z01002", "unit": "", "refill": 8000, "category": "貼紙" },
-            "Z01003": { "name": "珠光空白貼紙60x50/2000張(圓盤綜合菇)", "code": "Z01003", "unit": "", "refill": null, "category": "貼紙" },
-            "Z01005": { "name": "熱感貼紙70x40/1900張(Green Living有機)", "code": "Z01005", "unit": "", "refill": 9500, "category": "貼紙" },
-            "Z01007": { "name": "熱感貼紙75x42/3000張(產銷履歷)", "code": "Z01007", "unit": "", "refill": 48000, "category": "貼紙" },
-            "Z01012": { "name": "熱感貼紙94x64/3000張(履歷洋菇PLB二合一)", "code": "Z01012", "unit": "", "refill": 6000, "category": "貼紙" },
-            "Z01013": { "name": "熱感貼紙83x64/2000張(履歷洋菇CQL二合一)", "code": "Z01013", "unit": "", "refill": null, "category": "貼紙" },
-            "Z01014": { "name": "珠光貼紙55x55/3000張(履歷香菇貼紙)", "code": "Z01014", "unit": "", "refill": 24000, "category": "貼紙" },
-            "Z01015": { "name": "珠光貼紙81x65/900張(有機農產品外箱貼)", "code": "Z01015", "unit": "", "refill": 1830, "category": "貼紙" },
-            "Z01016": { "name": "珠光貼紙60×70/2000張(履歷Eugenie優境生鮮Mia)", "code": "Z01016", "unit": "", "refill": 2000, "category": "貼紙" },
-            "Z01017": { "name": "熱感貼紙70×95/1900張(有機Eugenie優境生鮮Mia)", "code": "Z01017", "unit": "", "refill": 1300, "category": "貼紙" },
-            "Z01018": { "name": "熱感貼紙85x52/2000張(履歷絲瓜500gPLB二合一)", "code": "Z01018", "unit": "", "refill": null, "category": "貼紙" },
-            "Z01022": { "name": "珠光貼紙4.5x15/1000張(有機香菇260g)", "code": "Z01022", "unit": "", "refill": null, "category": "貼紙" },
-            "Z01024": { "name": "珠光貼紙70x55/2500張(好市多有機黑美人菇黑珍珠菇700g)", "code": "Z01024", "unit": "", "refill": 5000, "category": "貼紙" },
-            "Z01025": { "name": "珠光貼紙80x50/2020張(好市多有機杏鮑菇900g)", "code": "Z01025", "unit": "", "refill": null, "category": "貼紙" },
-            "Z01028": { "name": "熱感貼紙75x52/2050張(履歷香菇150g二合一)", "code": "Z01028", "unit": "", "refill": null, "category": "貼紙" },
-            
-            "Z02001": { "name": "PET透明盒250x182x75/400入(香菇600g)LJ1000/B153", "code": "Z02001", "unit": "", "refill": 6000, "category": "包裝托盤/盒" },
-            "Z02003": { "name": "PET透明盒200x175x75/660入(五福菇600g)LJ700/C277", "code": "Z02003", "unit": "", "refill": 110, "category": "包裝托盤/盒" },
-            "Z02004": { "name": "PP黑盒200x175x75/850入(香菇400g)LJ700/C277K-1", "code": "Z02004", "unit": "", "refill": 850, "category": "包裝托盤/盒" },
-            "Z02005": { "name": "PP黑盒230x170x48/500入(洋菇500g)洋菇盒C310K", "code": "Z02005", "unit": "", "refill": 100, "category": "包裝托盤/盒" },
-            "Z02006": { "name": "PP黑盒160x120x54/1200入(洋菇200g)B150K", "code": "Z02006", "unit": "", "refill": 600, "category": "包裝托盤/盒" },
-            "Z02007": { "name": "PET透明盒132x132x45/1800入803D", "code": "Z02007", "unit": "", "refill": 27000, "category": "包裝托盤/盒" },
-            "Z02008": { "name": "PET透明盒165x128x70/1100入(香菇200g)B156", "code": "Z02008", "unit": "", "refill": 5500, "category": "包裝托盤/盒" },
-            "Z02011": { "name": "PET黑盒185x117x30/1000入(香菇150g)T26", "code": "Z02011", "unit": "", "refill": 100, "category": "包裝托盤/盒" },
-            "Z02013": { "name": "PLA黑盒180x180x30/600入(香草)杯架", "code": "Z02013", "unit": "", "refill": 600, "category": "包裝托盤/盒" },
-            "Z02014": { "name": "PET透明盒200x175x59/500入(鮑魚菇250g)LJ701", "code": "Z02014", "unit": "", "refill": null, "category": "包裝托盤/盒" },
-            "Z02018": { "name": "PET透明盒160x120x54/1800入(有機香菇150g)", "code": "Z02018", "unit": "", "refill": null, "category": "包裝托盤/盒" },
-            "Z02021": { "name": "PET透明盒183x128x45/1200入C129", "code": "Z02021", "unit": "", "refill": 3600, "category": "包裝托盤/盒" },
-            
-            "Z03001": { "name": "CPP320x210/100入(香草盆栽袋)", "code": "Z03001", "unit": "", "refill": 1000, "category": "包裝袋" },
-            "Z03004": { "name": "PE/290x117x60/8g(BIO有機杏鮑菇500g)", "code": "Z03004", "unit": "", "refill": null, "category": "包裝袋" },
-            "Z03005": { "name": "OPP/300x135x55/3g(有機黑木耳400g)", "code": "Z03005", "unit": "", "refill": 1000, "category": "包裝袋" },
-            "Z03006": { "name": "OPP/300x135x55/3g(履歷香菇350g)", "code": "Z03006", "unit": "", "refill": 1000, "category": "包裝袋" },
-            "Z03007": { "name": "PET12PE80/190x320x45/1500入(好市多有機銀耳夾鏈袋500g)", "code": "Z03007", "unit": "", "refill": 7000, "category": "包裝袋" },
-            "Z03008": { "name": "PE/360x185x62/13g(BIO有機杏鮑菇1kg)", "code": "Z03008", "unit": "", "refill": null, "category": "包裝袋" },
-            "Z03013": { "name": "PET12CPP80/420x250x60/500入(好市多有機黑美人菇黑珍珠菇手提夾鏈袋700g)", "code": "Z03013", "unit": "", "refill": 3000, "category": "包裝袋" },
-            
-            "Z04001": { "name": "PVC保鮮膜300/1000M/2入", "code": "Z04001", "unit": "", "refill": 2, "category": "保鮮膜" },
-            "Z04002": { "name": "PVC保鮮膜350/1000M/2入", "code": "Z04002", "unit": "", "refill": 10, "category": "保鮮膜" },
-            "Z04003": { "name": "PVC保鮮膜400/1000M/2入", "code": "Z04003", "unit": "", "refill": 10, "category": "保鮮膜" },
-            
-            "Z05001": { "name": "OPP透明445/25U/2000M", "code": "Z05001", "unit": "", "refill": 1, "category": "袋膜" },
-            "Z05004": { "name": "OPP435/25U/2000M(家樂福有機BIO)", "code": "Z05004", "unit": "", "refill": 3, "category": "袋膜" },
-            "Z05009": { "name": "OPP435/25U/2000M(全聯履歷新社農會200g)", "code": "Z05009", "unit": "", "refill": 3, "category": "袋膜" },
-            "Z05010": { "name": "OPP435/25U/2000M(綠園公版)", "code": "Z05010", "unit": "", "refill": 1, "category": "袋膜" },
-            "Z05011": { "name": "OPP435/25U/2000M(有機台朔)", "code": "Z05011", "unit": "", "refill": 1, "category": "袋膜" },
-            "Z05018": { "name": "OPP425/25U/2000M(全聯三面封素茵都市農場)", "code": "Z05018", "unit": "", "refill": 3, "category": "袋膜" },
-            "Z05023": { "name": "OPP380/25U/2000M(家樂福履歷PLB150g落料)", "code": "Z05023", "unit": "", "refill": 2, "category": "袋膜" },
-            "Z05030": { "name": "OPP435/25U/2000M(全聯履歷MW200g)", "code": "Z05030", "unit": "", "refill": 3, "category": "袋膜" },
-            "Z05031": { "name": "OPP435/25U/2000M(家樂福PLB150g履歷套印枕式)", "code": "Z05031", "unit": "", "refill": 3, "category": "袋膜" },
-            "Z05032": { "name": "OPP透明480/25U/2000M", "code": "Z05032", "unit": "", "refill": 1, "category": "袋膜" },
-            "Z05034": { "name": "OPP380/25U/2000M(好市多有機黑珍珠菇150g落料)", "code": "Z05034", "unit": "", "refill": 4, "category": "袋膜" },
-            "Z05035": { "name": "OPP470/25U/2000M(蕈優全聯杏鮑菇有機230g)", "code": "Z05035", "unit": "", "refill": 1, "category": "袋膜" },
-            "Z05036": { "name": "OPP530/25U/2000M(家樂福暖菇鍋物有機組合菇400g)", "code": "Z05036", "unit": "", "refill": 1, "category": "袋膜" },
-            "Z05039": { "name": "OPP針洞330/25U/2000M(家樂福有機櫛瓜500g)", "code": "Z05039", "unit": "", "refill": 2, "category": "袋膜" },
-            "Z05040": { "name": "OPP400/25U/2000M(家樂福履歷牛番茄500g)", "code": "Z05040", "unit": "", "refill": 2, "category": "袋膜" },
-            "Z05042": { "name": "OPP380/25U/2000M(家樂福有機落料)", "code": "Z05042", "unit": "", "refill": 2, "category": "袋膜" },
-            "Z05043": { "name": "OPP380/25U/2000M(家樂福履歷落料)", "code": "Z05043", "unit": "", "refill": 2, "category": "袋膜" },
-            
-            "Z07001": { "name": "袖套75x450(好市多履歷洋菇500g)", "code": "Z07001", "unit": "", "refill": 5000, "category": "袖套" },
-            "Z07006": { "name": "袖套65x500(家樂福BIO有機組合菇600g)", "code": "Z07006", "unit": "", "refill": 200, "category": "袖套" },
-            
-            "Z09001": { "name": "泡棉舒美布410x540x1", "code": "Z09001", "unit": "", "refill": 200, "category": "其他" },
-            
-            "Z06001": { "name": "彩盒陳列箱558x393x287/A愣(香菇)", "code": "Z06001", "unit": "", "refill": 320, "category": "紙箱" },
-            "Z06002": { "name": "彩盒陳列箱558x393x287/A愣(洋菇)", "code": "Z06002", "unit": "", "refill": 320, "category": "紙箱" },
-            "Z06003": { "name": "彩盒陳列箱558x393x287/A愣(銀耳)", "code": "Z06003", "unit": "", "refill": 320, "category": "紙箱" },
-            "Z06004": { "name": "彩盒陳列箱558x393x287/A愣(杏鮑菇)", "code": "Z06004", "unit": "", "refill": 320, "category": "紙箱" },
-            "Z06014": { "name": "彩盒陳列箱573x393x287/A愣(綠園公版)", "code": "Z06014", "unit": "", "refill": 320, "category": "紙箱" },
-            "Z06005": { "name": "牛皮紙箱475x345x201/A愣(全聯)", "code": "Z06005", "unit": "", "refill": 15, "category": "紙箱" },
-            "Z06008": { "name": "牛皮紙箱626x384x346/AB愣(理貨物流箱)", "code": "Z06008", "unit": "", "refill": 200, "category": "紙箱" }
-        };
-
-        let replenishStandards = {};
-        let originalRows = [];
-        let processedRows = [];
-        let currentFilter = 'replenish'; 
-        let searchQuery = '';
-        let isUnlocked = false;
-        let pendingAction = null;
-
-        // ==========================================
         // 🔒 將函數掛載至 window 全域作用域
         // ==========================================
         window.editStd = editStd;
@@ -1519,7 +1563,7 @@
             autoLoadBackupJson();
             autoFetchCloudOnLoad(finalUrl);
             
-            // DOM 事件綁定 (確保 DOM 元素存在後才綁定)
+            // DOM 事件綁定
             const tabInventory = document.getElementById('tabInventory');
             const tabSettings = document.getElementById('tabSettings');
             const btnLockSettings = document.getElementById('btnLockSettings');
@@ -1610,7 +1654,7 @@
 
             if (btnResetToDefaults) {
                 btnResetToDefaults.addEventListener('click', () => {
-                    if (confirm('確定要一鍵重置，同步回網頁預設的包材最低標準嗎？您的自訂變更將會被覆蓋！')) {
+                    if (confirm('確定要一鍵重置，同步回網頁預設的包材最低庫存嗎？您的自訂變更將會被覆蓋！')) {
                         replenishStandards = JSON.parse(JSON.stringify(DEFAULT_STANDARDS));
                         saveStandardsToStorage();
                         window.renderSettingsList();
@@ -1680,7 +1724,7 @@
             if (importStdFile) {
                 importStdFile.addEventListener('change', (e) => {
                     if (e.target.files.length > 0) {
-                        handleFileSelect(e.target.files[0]); // 共用上傳邏輯處理 Excel 學習
+                        handleFileSelect(e.target.files[0]);
                     }
                 });
             }
@@ -1793,7 +1837,6 @@
                 });
             }
 
-            // Drag and Drop Upload logic
             if (dropZone && fileInput) {
                 dropZone.addEventListener('click', () => fileInput.click());
                 
@@ -1819,6 +1862,37 @@
                         handleFileSelect(e.target.files[0]);
                     }
                 });
+            }
+
+            function handleFileSelect(file) {
+                const dataSourceTag = document.getElementById('dataSourceTag');
+                if (dataSourceTag) dataSourceTag.textContent = `* 數據載入來源: 📁 手動匯入 (${file.name})`;
+                
+                showLoading(true);
+                const reader = new FileReader();
+
+                if (file.name.endsWith('.csv')) {
+                    reader.onload = function(e) {
+                        parseCSV(e.target.result);
+                    };
+                    reader.readAsText(file);
+                } else {
+                    reader.onload = function(e) {
+                        try {
+                            const data = new Uint8Array(e.target.result);
+                            const workbook = XLSX.read(data, { type: 'array' });
+                            const firstSheetName = workbook.SheetNames[0];
+                            const worksheet = workbook.Sheets[firstSheetName];
+                            const sheetRows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                            parseExcelData(sheetRows);
+                        } catch (err) {
+                            showLoading(false);
+                            showToast(`Excel 載入失敗: ${err.message}`, 'alert-circle', 'text-rose-400');
+                        }
+                    };
+                    reader.readAsArrayBuffer(file);
+                }
+                if (fileInput) fileInput.value = '';
             }
 
             if (btnAll) {
