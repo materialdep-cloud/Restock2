@@ -74,11 +74,11 @@
                         <ul class="space-y-2.5 text-sm text-slate-600">
                             <li class="flex items-start">
                                 <span class="text-emerald-500 mr-1.5">•</span>
-                                <span><b>生產倉主動監控：</b>系統會加總 <b>綠園二廠/包材倉</b> 與 <b>綠園二廠/常溫區</b> 的庫存量與補貨標準比對。</span>
+                                <span><b>生產倉主動監控：</b>系統會加總 <b>綠園二廠/包材倉</b> 與 <b>綠園二廠/常溫區</b> 的庫存量與最低標準比對。</span>
                             </li>
                             <li class="flex items-start">
                                 <span class="text-emerald-500 mr-1.5">•</span>
-                                <span><b>內場補貨判定：</b>當生產倉不足，但後援倉（車棚1/車棚2/63-5常溫）有貨，會亮<b>紅底</b>提示內場補貨。</span>
+                                <span><b>內場補貨判定：</b>當生產倉不足，但後援倉（車棚1/車棚2/63-5常溫）有貨，會亮<b>紅底</b>提示內場調撥。</span>
                             </li>
                             <li class="flex items-start">
                                 <span class="text-emerald-500 mr-1.5">•</span>
@@ -101,7 +101,7 @@
                         </div>
                         <div id="dropZone" class="border-2 border-dashed border-slate-200 hover:border-emerald-400 rounded-xl p-6 text-center cursor-pointer transition-colors group flex-grow flex flex-col justify-center items-center">
                             <input type="file" id="fileInput" accept=".xlsx, .xls, .csv" class="hidden">
-                            <div class="p-2.5 bg-indigo-50 rounded-full text-indigo-500 group-hover:scale-110 transition-transform mb-2">
+                            <div class="p-2.5 bg-emerald-50 rounded-full text-emerald-500 group-hover:scale-110 transition-transform mb-2">
                                 <i data-lucide="upload-cloud" class="w-6 h-6"></i>
                             </div>
                             <p class="text-xs font-semibold text-slate-700">拖曳或點選上傳 Excel / CSV</p>
@@ -138,7 +138,7 @@
 
             </div>
 
-            <!-- 數據統計區 (加入缺貨需採購) -->
+            <!-- 數據統計區 -->
             <div id="statsContainer" class="hidden grid grid-cols-2 md:grid-cols-5 gap-4">
                 <div class="bg-white p-3.5 rounded-xl shadow-sm border border-slate-100 flex items-center space-x-3">
                     <div class="p-2 bg-blue-50 text-blue-500 rounded-lg">
@@ -195,11 +195,11 @@
                     </button>
                     <button id="btnReplenishOnly" class="px-4 py-2 rounded-lg text-sm font-semibold bg-slate-100 text-rose-600 hover:bg-rose-50 transition-colors flex items-center">
                         <span class="w-2 h-2 rounded-full bg-white mr-2"></span>
-                        內場需補貨 (<span id="btnReplenishCount">0</span>)
+                        內場調撥 (<span id="btnReplenishCount">0</span>)
                     </button>
                     <button id="btnPurchaseOnly" class="px-4 py-2 rounded-lg text-sm font-semibold bg-slate-100 text-purple-700 hover:bg-purple-100 transition-colors flex items-center">
                         <span class="w-2 h-2 rounded-full bg-purple-500 mr-2"></span>
-                        缺貨需採購 (<span id="btnPurchaseCount">0</span>)
+                        缺貨採購 (<span id="btnPurchaseCount">0</span>)
                     </button>
                     <button id="btnNoStdOnly" class="px-4 py-2 rounded-lg text-sm font-semibold bg-slate-100 text-amber-700 hover:bg-amber-50 transition-colors flex items-center">
                         <span class="w-2 h-2 rounded-full bg-amber-500 mr-2"></span>
@@ -257,8 +257,8 @@
                                 <th class="px-6 py-4">倉庫</th>
                                 <th class="px-6 py-4 text-right">庫存數量</th>
                                 <th class="px-6 py-4 text-right">最低庫存量</th>
-                                <!-- 新增的包裝/原料倉庫存欄位 -->
-                                <th class="px-6 py-4 text-right text-indigo-600 bg-indigo-50/50">包裝/原料倉</th>
+                                <!-- 包裝/原料倉庫存欄位 -->
+                                <th class="px-6 py-4 text-right text-emerald-700 bg-emerald-50/50">包裝/原料倉</th>
                                 <th class="px-6 py-4 text-center">狀態說明 / 補貨後援</th>
                             </tr>
                         </thead>
@@ -368,7 +368,7 @@
                                 </button>
                             </div>
                             <input type="file" id="backupFileInput" accept=".json" class="hidden">
-                            <p class="text-[10px] text-slate-400">標準備份檔不包含庫存，純粹移轉「補貨臨界值」</p>
+                            <p class="text-[10px] text-slate-400">標準備份檔不包含庫存，純粹移轉「最低庫存臨界值」</p>
                         </div>
                     </div>
 
@@ -475,12 +475,12 @@
         <span id="toastMessage">這是提示訊息</span>
     </div>
 
-    <!-- 💡 唯一聚合 JavaScript 控制區 -->
+    <!-- 💡 最穩定的線性 JavaScript 架構（無死區防報錯） -->
     <script>
         // ==========================================
-        // 1. 全域變數定義
+        // 1. 全域變數定義區 (最先載入)
         // ==========================================
-        const CODE_VERSION = "2026.06.06_v6.0"; // 更新版本號
+        const CODE_VERSION = "2026.06.06_v5.5"; 
         const SETTINGS_PASSWORD = "1021";
         
         const MAIN_WAREHOUSES = [
@@ -494,13 +494,14 @@
             "63-5倉/常溫料架區"
         ];
 
-        // 我們將「包裝/原料倉」也加入系統關注的名單，但它不影響綠園二廠與後援的邏輯，僅供顯示用
+        // 純顯示關注倉別
         const DISPLAY_ONLY_WAREHOUSES = [
             "包裝/原料倉"
         ];
 
         const ALLOWED_WAREHOUSES = [...MAIN_WAREHOUSES, ...BACKUP_WAREHOUSES, ...DISPLAY_ONLY_WAREHOUSES];
 
+        // 包材最低庫存預設資料庫
         const DEFAULT_STANDARDS = {
             "Z01001": { "name": "珠光空白貼紙30x20/2000張(銀耳、五福)", "code": "Z01001", "unit": "", "refill": 4000, "category": "貼紙" },
             "Z01002": { "name": "珠光空白貼紙35x25/2000張(香草)", "code": "Z01002", "unit": "", "refill": 8000, "category": "貼紙" },
@@ -570,7 +571,6 @@
             "Z06003": { "name": "彩盒陳列箱558x393x287/A愣(銀耳)", "code": "Z06003", "unit": "", "refill": 320, "category": "紙箱" },
             "Z06004": { "name": "彩盒陳列箱558x393x287/A愣(杏鮑菇)", "code": "Z06004", "unit": "", "refill": 320, "category": "紙箱" },
             "Z06014": { "name": "彩盒陳列箱573x393x287/A愣(綠園公版)", "code": "Z06014", "unit": "", "refill": 320, "category": "紙箱" },
-            "Z06005": { "name": "牛皮紙箱475x345x201/A愣(全聯)", "code": "Z06005", "unit": "", "refill": 15, "category": "紙箱" }
         };
 
         let replenishStandards = {};
@@ -582,15 +582,14 @@
         let pendingAction = null;
 
         // ==========================================
-        // 2. 核心底層與資料處理函數 (置頂宣告，防止 TDZ)
+        // 2. 函數宣告區 (全部 Hoisting 置頂)
         // ==========================================
+        
         function initClock() {
             function updateClock() {
                 const clockEl = document.getElementById('liveClock');
                 const celebrationTimeEl = document.getElementById('celebrationTime'); 
-                
                 if (!clockEl && !celebrationTimeEl) return;
-
                 const now = new Date();
                 const year = now.getFullYear();
                 const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -599,13 +598,10 @@
                 const minutes = String(now.getMinutes()).padStart(2, '0');
                 const seconds = String(now.getSeconds()).padStart(2, '0');
                 const days = ['日', '一', '二', '三', '四', '五', '六'];
-                const dayOfWeek = days[now.getDay()];
-                
-                const timeStr = `${year}/${month}/${date} (星期${dayOfWeek}) ${hours}:${minutes}:${seconds}`;
+                const timeStr = `${year}/${month}/${date} (星期${days[now.getDay()]}) ${hours}:${minutes}:${seconds}`;
                 if (clockEl) clockEl.textContent = timeStr;
                 if (celebrationTimeEl) celebrationTimeEl.textContent = timeStr;
             }
-            
             updateClock();
             setInterval(updateClock, 1000);
         }
@@ -624,16 +620,10 @@
 
         function findStandard(code, unit) {
             const compKey = makeKey(code, unit);
-            if (replenishStandards[compKey]) {
-                return replenishStandards[compKey];
-            }
+            if (replenishStandards[compKey]) return replenishStandards[compKey];
             const cleanCode = String(code || '').trim().toUpperCase();
-            if (replenishStandards[cleanCode]) {
-                return replenishStandards[cleanCode];
-            }
-            if (DEFAULT_STANDARDS[cleanCode]) {
-                return DEFAULT_STANDARDS[cleanCode];
-            }
+            if (replenishStandards[cleanCode]) return replenishStandards[cleanCode];
+            if (DEFAULT_STANDARDS[cleanCode]) return DEFAULT_STANDARDS[cleanCode];
             return null;
         }
 
@@ -645,13 +635,8 @@
             const currentStoredVersion = localStorage.getItem('package_standards_code_version');
             const stored = localStorage.getItem('package_standards_db_v5');
             let localData = {};
-
             if (stored) {
-                try {
-                    localData = JSON.parse(stored);
-                } catch(e) {
-                    console.error("解析 LocalStorage 發生錯誤", e);
-                }
+                try { localData = JSON.parse(stored); } catch(e) { console.error(e); }
             }
             
             const cleanedLocalData = {};
@@ -670,21 +655,16 @@
             }
 
             if (currentStoredVersion !== CODE_VERSION) {
-                console.log(`包材代碼標準升級中！自 ${currentStoredVersion} 升級至最新版 ${CODE_VERSION}`);
+                console.log(`包材標準升級中！自 ${currentStoredVersion} 升級至 ${CODE_VERSION}`);
                 localStorage.setItem('package_standards_code_version', CODE_VERSION);
-                
                 const customLocalData = {};
                 for (let key in cleanedLocalData) {
-                    if (!DEFAULT_STANDARDS[key]) {
-                        customLocalData[key] = cleanedLocalData[key];
-                    }
+                    if (!DEFAULT_STANDARDS[key]) { customLocalData[key] = cleanedLocalData[key]; }
                 }
-                
                 replenishStandards = { ...DEFAULT_STANDARDS, ...customLocalData };
             } else {
                 replenishStandards = { ...cleanedLocalData, ...DEFAULT_STANDARDS };
             }
-            
             saveStandardsToStorage();
         }
 
@@ -696,19 +676,12 @@
 
             stdTableBody.innerHTML = '';
             const query = searchStdInput ? searchStdInput.value.trim().toLowerCase() : '';
-            
             let sortedKeys = Object.keys(replenishStandards).sort();
             let displayCount = 0;
 
             sortedKeys.forEach(compositeKey => {
                 const item = replenishStandards[compositeKey];
-                
-                if (query && 
-                    !item.code.toLowerCase().includes(query) && 
-                    !item.name.toLowerCase().includes(query)) {
-                    return; 
-                }
-
+                if (query && !item.code.toLowerCase().includes(query) && !item.name.toLowerCase().includes(query)) return; 
                 displayCount++;
                 const tr = document.createElement('tr');
                 tr.className = "hover:bg-slate-50 transition-colors";
@@ -726,38 +699,23 @@
             });
 
             if (stdCountText) stdCountText.textContent = Object.keys(replenishStandards).length;
-
             if (displayCount === 0) {
-                stdTableBody.innerHTML = `
-                    <tr>
-                        <td colspan="5" class="px-6 py-8 text-center text-slate-400">
-                            沒有找到符合的包材補貨標準。
-                        </td>
-                    </tr>
-                `;
+                stdTableBody.innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-slate-400">沒有找到符合的包材補貨標準。</td></tr>`;
             }
             if (window.lucide) window.lucide.createIcons();
         }
 
         function autoLoadBackupJson() {
             fetch('包材補貨標準備份.json?t=' + new Date().getTime(), { cache: 'no-store' })
-                .then(response => {
-                    if (response.ok) return response.json();
-                    throw new Error('No backup json found');
-                })
+                .then(res => { if (res.ok) return res.json(); throw new Error('No json'); })
                 .then(jsonData => {
-                    console.log('偵測到 包材補貨標準備份.json，自動載入並合併中...');
                     let mergedCount = 0;
                     for (let key in jsonData) {
                         let item = jsonData[key];
                         if (item && item.code && item.refill !== undefined) {
                             const cleanCode = String(item.code).toUpperCase().trim();
                             replenishStandards[cleanCode] = {
-                                name: item.name,
-                                code: cleanCode,
-                                unit: item.unit || '',
-                                refill: parseFloat(item.refill) || 0,
-                                category: item.category || '未分類'
+                                name: item.name, code: cleanCode, unit: item.unit || '', refill: parseFloat(item.refill) || 0, category: item.category || '未分類'
                             };
                             mergedCount++;
                         }
@@ -765,19 +723,12 @@
                     if (mergedCount > 0) {
                         saveStandardsToStorage();
                         renderSettingsList();
-                        showToast(`已成功自動預載備份檔！共載入 ${mergedCount} 個精準包材補貨標準。`, 'shield-check', 'text-emerald-400');
                     }
-                })
-                .catch(err => {
-                    console.log('未偵測到預載 JSON 備份檔，將採用 DEFAULT_STANDARDS。');
-                });
+                }).catch(err => console.log('未偵測到預載 JSON 備份檔。'));
         }
 
         function autoFetchCloudOnLoad(url) {
-            if (!url) {
-                autoDetectLocalFile();
-                return;
-            }
+            if (!url) { autoDetectLocalFile(); return; }
             const dataSourceTag = document.getElementById('dataSourceTag');
             const loadingStatusText = document.getElementById('loadingStatusText');
             if (dataSourceTag) dataSourceTag.textContent = `* 數據載入來源: 🌐 Google Sheet 雲端實時更新 (自動連線)`;
@@ -785,18 +736,12 @@
             showLoading(true);
             
             const busterUrl = url + (url.includes('?') ? '&' : '?') + 't=' + new Date().getTime();
-
             fetch(busterUrl, { cache: 'no-store' })
-                .then(response => {
-                    if (!response.ok) throw new Error('雲端網址讀取失敗');
-                    return response.text();
-                })
+                .then(res => { if (!res.ok) throw new Error('雲端網址讀取失敗'); return res.text(); })
                 .then(csvText => {
-                    parseCSV(csvText);
+                    parseCSV(csvText, false);
                     showToast('已成功自動同步雲端包材庫存！', 'shield-check', 'text-emerald-400');
-                })
-                .catch(err => {
-                    console.log('雲端資料自動載入失敗，嘗試讀取本機「包材標準.csv」...', err);
+                }).catch(err => {
                     showLoading(false);
                     autoDetectLocalFile();
                 });
@@ -804,63 +749,43 @@
 
         function autoDetectLocalFile() {
             fetch('包材標準.csv?t=' + new Date().getTime(), { cache: 'no-store' })
-                .then(response => {
-                    if (response.ok) return response.text();
-                    throw new Error('No default csv');
-                })
+                .then(res => { if (res.ok) return res.text(); throw new Error('No default csv'); })
                 .then(csvText => {
                     const dataSourceTag = document.getElementById('dataSourceTag');
                     if (dataSourceTag) dataSourceTag.textContent = `* 數據載入來源: 📁 全自動讀取 (包材標準.csv)`;
-                    parseCSV(csvText);
-                })
-                .catch(err => {
-                    console.log('未偵測到預載的包材標準.csv 檔案。');
-                });
+                    parseCSV(csvText, false);
+                }).catch(err => console.log('未偵測到預載的包材標準.csv 檔案。'));
         }
 
         function showLoading(isLoading) {
-            const loadingStatus = document.getElementById('loadingStatus');
-            const emptyState = document.getElementById('emptyState');
-            const tableContainer = document.getElementById('tableContainer');
-            const statsContainer = document.getElementById('statsContainer');
-            const filterContainer = document.getElementById('filterContainer');
-            const allSafeCelebration = document.getElementById('allSafeCelebration');
-
-            if (isLoading) {
-                if (loadingStatus) loadingStatus.classList.remove('hidden');
-                if (emptyState) emptyState.classList.add('hidden');
-                if (tableContainer) tableContainer.classList.add('hidden');
-                if (statsContainer) statsContainer.classList.add('hidden');
-                if (filterContainer) filterContainer.classList.add('hidden');
-                if (allSafeCelebration) allSafeCelebration.classList.add('hidden');
-            } else {
-                if (loadingStatus) loadingStatus.classList.add('hidden');
-            }
+            const arr = ['loadingStatus', 'emptyState', 'tableContainer', 'statsContainer', 'filterContainer', 'allSafeCelebration'];
+            arr.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    if (isLoading) {
+                        if (id === 'loadingStatus') el.classList.remove('hidden');
+                        else el.classList.add('hidden');
+                    } else {
+                        if (id === 'loadingStatus') el.classList.add('hidden');
+                    }
+                }
+            });
         }
 
         function parseCSVLine(text) {
-            let p = '', r = [];
-            let q = false;
+            let p = '', r = [], q = false;
             for (let i = 0; i < text.length; i++) {
                 let c = text.charAt(i);
-                if (c === '"') {
-                    q = !q; 
-                } else if (c === ',' && !q) { 
-                    r.push(p); 
-                    p = ''; 
-                } else {
-                    p += c;
-                }
+                if (c === '"') { q = !q; } else if (c === ',' && !q) { r.push(p); p = ''; } else { p += c; }
             }
             r.push(p);
             return r.map(cell => cell.replace(/^"(.*)"$/, '$1').trim());
         }
 
-        function parseExcelData(sheetRows) {
+        function parseExcelData(sheetRows, isLearningStandards = false) {
             try {
                 const headers = sheetRows[0].map(h => String(h || '').trim());
-                
-                const headerMap = {
+                const hMap = {
                     category: headers.findIndex(h => h.includes('品類')),
                     itemCode: headers.findIndex(h => h.includes('品項代號')),
                     itemName: headers.findIndex(h => h.includes('品項') && !h.includes('代號') && !h.includes('單位')),
@@ -868,16 +793,6 @@
                     warehouse: headers.findIndex(h => h.includes('倉庫')),
                     stock: headers.findIndex(h => h.includes('庫存量') || h.includes('庫存數量')),
                     refill: headers.findIndex(h => h.includes('最低庫存') || h.includes('補貨標準'))
-                };
-
-                const colIdx = {
-                    category: headerMap.category !== -1 ? headerMap.category : 0,
-                    itemCode: headerMap.itemCode !== -1 ? headerMap.itemCode : 1,
-                    itemName: headerMap.itemName !== -1 ? headerMap.itemName : 2,
-                    unit: headerMap.unit !== -1 ? headerMap.unit : 3,
-                    warehouse: headerMap.warehouse !== -1 ? headerMap.warehouse : 4,
-                    stock: headerMap.stock !== -1 ? headerMap.stock : 5,
-                    refill: headerMap.refill !== -1 ? headerMap.refill : 6
                 };
 
                 const parsedData = [];
@@ -886,33 +801,28 @@
                 for (let i = 1; i < sheetRows.length; i++) {
                     const cells = sheetRows[i];
                     if (!cells || cells.length === 0) continue;
-
-                    const itemCode = cells[colIdx.itemCode] ? String(cells[colIdx.itemCode]).trim() : '';
-                    const warehouse = cells[colIdx.warehouse] ? String(cells[colIdx.warehouse]).trim() : '';
-                    const unit = cells[colIdx.unit] ? String(cells[colIdx.unit]).trim() : '';
-                    const refillVal = cells[colIdx.refill] !== undefined && cells[colIdx.refill] !== '' ? cleanFloat(cells[colIdx.refill]) : null;
+                    const itemCode = cells[hMap.itemCode] ? String(cells[hMap.itemCode]).trim() : '';
+                    const warehouse = cells[hMap.warehouse] ? String(cells[hMap.warehouse]).trim() : '';
+                    const unit = cells[hMap.unit] ? String(cells[hMap.unit]).trim() : '';
+                    const refillVal = cells[hMap.refill] !== undefined && cells[hMap.refill] !== '' ? cleanFloat(cells[hMap.refill]) : null;
 
                     if (itemCode && warehouse) {
-                        if (refillVal !== null && !isNaN(refillVal)) {
+                        if (isLearningStandards && refillVal !== null && !isNaN(refillVal)) {
                             const cleanCode = String(itemCode).toUpperCase().trim();
                             replenishStandards[cleanCode] = {
-                                name: cells[colIdx.itemName] ? String(cells[colIdx.itemName]).trim() : '品項',
-                                code: cleanCode,
-                                unit: unit,
-                                refill: refillVal,
-                                category: cells[colIdx.category] ? String(cells[colIdx.category]).trim() : '包材'
+                                name: cells[hMap.itemName] ? String(cells[hMap.itemName]).trim() : '品項',
+                                code: cleanCode, unit: unit, refill: refillVal,
+                                category: cells[hMap.category] ? String(cells[hMap.category]).trim() : '包材'
                             };
                             hasRefillUpdated = true;
                         }
 
                         if (ALLOWED_WAREHOUSES.includes(warehouse)) {
                             parsedData.push({
-                                category: cells[colIdx.category] !== undefined ? String(cells[colIdx.category]).trim() : '包材',
+                                category: cells[hMap.category] !== undefined ? String(cells[hMap.category]).trim() : '包材',
                                 itemCode: itemCode,
-                                itemName: cells[colIdx.itemName] !== undefined ? String(cells[colIdx.itemName]).trim() : '',
-                                unit: unit,
-                                warehouse: warehouse,
-                                stock: cleanFloat(cells[colIdx.stock]) || 0
+                                itemName: cells[hMap.itemName] !== undefined ? String(cells[hMap.itemName]).trim() : '',
+                                unit: unit, warehouse: warehouse, stock: cleanFloat(cells[hMap.stock]) || 0
                             });
                         }
                     }
@@ -920,15 +830,15 @@
 
                 if (hasRefillUpdated) {
                     saveStandardsToStorage();
+                    window.renderSettingsList();
+                    showToast('已成功從檔案中學習並覆蓋補貨標準！', 'shield-check', 'text-emerald-400');
                 }
 
-                if (parsedData.length === 0) {
-                    throw new Error('未在檔案中找到任何符合限定倉庫的數據。');
+                if (!isLearningStandards) {
+                    if (parsedData.length === 0) throw new Error('未找到符合限定五倉的數據。');
+                    originalRows = parsedData;
+                    analyzeInventory();
                 }
-
-                originalRows = parsedData;
-                analyzeInventory();
-
             } catch (error) {
                 showLoading(false);
                 const emptyState = document.getElementById('emptyState');
@@ -937,13 +847,12 @@
             }
         }
 
-        function parseCSV(text) {
+        function parseCSV(text, isLearningStandards = false) {
             try {
                 const lines = text.split(/\r?\n/);
                 if (lines.length < 2) throw new Error('檔案格式不正確');
-
                 const headers = parseCSVLine(lines[0]);
-                const headerMap = {
+                const hMap = {
                     category: headers.findIndex(h => h.includes('品類')),
                     itemCode: headers.findIndex(h => h.includes('品項代號')),
                     itemName: headers.findIndex(h => h.includes('品項') && !h.includes('代號') && !h.includes('單位')),
@@ -953,50 +862,34 @@
                     refill: headers.findIndex(h => h.includes('最低庫存') || h.includes('補貨標準'))
                 };
 
-                const colIdx = {
-                    category: headerMap.category !== -1 ? headerMap.category : 0,
-                    itemCode: headerMap.itemCode !== -1 ? headerMap.itemCode : 1,
-                    itemName: headerMap.itemName !== -1 ? headerMap.itemName : 2,
-                    unit: headerMap.unit !== -1 ? headerMap.unit : 3,
-                    warehouse: headerMap.warehouse !== -1 ? headerMap.warehouse : 4,
-                    stock: headerMap.stock !== -1 ? headerMap.stock : 5,
-                    refill: headerMap.refill !== -1 ? headerMap.refill : 6
-                };
-
                 const parsedData = [];
                 let hasRefillUpdated = false;
 
                 for (let i = 1; i < lines.length; i++) {
                     const line = lines[i].trim();
                     if (!line) continue;
-
                     const cells = parseCSVLine(line);
-                    if (cells[colIdx.itemCode] && cells[colIdx.warehouse]) {
-                        const warehouse = cells[colIdx.warehouse].trim();
-                        const itemCode = cells[colIdx.itemCode].trim();
-                        const unit = cells[colIdx.unit] ? cells[colIdx.unit].trim() : '';
-                        const refillVal = cells[colIdx.refill] !== undefined && cells[colIdx.refill] !== '' ? cleanFloat(cells[colIdx.refill]) : null;
+                    if (cells[hMap.itemCode] && cells[hMap.warehouse]) {
+                        const warehouse = cells[hMap.warehouse].trim();
+                        const itemCode = cells[hMap.itemCode].trim();
+                        const unit = cells[hMap.unit] ? cells[hMap.unit].trim() : '';
+                        const refillVal = cells[hMap.refill] !== undefined && cells[hMap.refill] !== '' ? cleanFloat(cells[hMap.refill]) : null;
 
-                        if (refillVal !== null && !isNaN(refillVal)) {
+                        if (isLearningStandards && refillVal !== null && !isNaN(refillVal)) {
                             const cleanCode = String(itemCode).toUpperCase().trim();
                             replenishStandards[cleanCode] = {
-                                name: cells[colIdx.itemName] ? cells[colIdx.itemName].trim() : '品項',
-                                code: cleanCode,
-                                unit: unit,
-                                refill: refillVal,
-                                category: cells[colIdx.category] ? cells[colIdx.category].trim() : '包材'
+                                name: cells[hMap.itemName] ? cells[hMap.itemName].trim() : '品項',
+                                code: cleanCode, unit: unit, refill: refillVal,
+                                category: cells[hMap.category] ? cells[hMap.category].trim() : '包材'
                             };
                             hasRefillUpdated = true;
                         }
 
                         if (ALLOWED_WAREHOUSES.includes(warehouse)) {
                             parsedData.push({
-                                category: cells[colIdx.category] || '包材',
-                                itemCode: itemCode,
-                                itemName: cells[colIdx.itemName] || '',
-                                unit: unit,
-                                warehouse: warehouse,
-                                stock: cleanFloat(cells[colIdx.stock]) || 0
+                                category: cells[hMap.category] || '包材',
+                                itemCode: itemCode, itemName: cells[hMap.itemName] || '',
+                                unit: unit, warehouse: warehouse, stock: cleanFloat(cells[hMap.stock]) || 0
                             });
                         }
                     }
@@ -1004,13 +897,15 @@
 
                 if (hasRefillUpdated) {
                     saveStandardsToStorage();
+                    window.renderSettingsList();
+                    showToast('已成功從檔案中學習並覆蓋補貨標準！', 'shield-check', 'text-emerald-400');
                 }
 
-                if (parsedData.length === 0) throw new Error('找不到指定倉庫的包材庫存。');
-
-                originalRows = parsedData;
-                analyzeInventory();
-
+                if (!isLearningStandards) {
+                    if (parsedData.length === 0) throw new Error('找不到指定五倉的包材庫存。');
+                    originalRows = parsedData;
+                    analyzeInventory();
+                }
             } catch (error) {
                 showLoading(false);
                 const emptyState = document.getElementById('emptyState');
@@ -1019,20 +914,15 @@
             }
         }
 
-        // 🚀 核心極致優化：整合五倉智慧比對邏輯，並【主動補上 0 庫存斷檔漏報】
         function analyzeInventory() {
             const inventoryLookup = {};
-            
-            // 1. 建立各品項在各個倉庫的實際在庫字典
             originalRows.forEach(row => {
                 const cleanCode = String(row.itemCode).toUpperCase().trim();
-                if (!inventoryLookup[cleanCode]) {
-                    inventoryLookup[cleanCode] = {};
-                }
+                if (!inventoryLookup[cleanCode]) inventoryLookup[cleanCode] = {};
                 inventoryLookup[cleanCode][row.warehouse] = (inventoryLookup[cleanCode][row.warehouse] || 0) + row.stock;
             });
 
-            // 2. 防漏空庫存補償機制：找出有設定標準，但 CSV 裡面「完全沒有主倉(綠園二廠)」資料的品項
+            // 防漏空庫存補償機制
             const mainWarehouseRows = new Set();
             originalRows.forEach(row => {
                 if (MAIN_WAREHOUSES.includes(row.warehouse)) {
@@ -1041,38 +931,23 @@
             });
 
             const allRowsToAnalyze = [...originalRows];
-
             for (let stdKey in replenishStandards) {
                 const stdItem = replenishStandards[stdKey];
                 if (stdItem && stdItem.refill !== null && stdItem.refill !== undefined) {
                     const cleanStdCode = String(stdItem.code).toUpperCase().trim();
-                    
-                    // 如果這個品項在 CSV 裡「完全沒有主倉紀錄」（代表主倉庫存是0，被 ERP 省略匯出了）
                     if (!mainWarehouseRows.has(cleanStdCode)) {
-                        // 強制產生一筆主倉為 0 的虛擬紀錄，保證系統必定會對它進行缺貨判定！
                         allRowsToAnalyze.push({
-                            category: stdItem.category || "包材",
-                            itemCode: stdItem.code,
-                            itemName: stdItem.name,
-                            unit: stdItem.unit || "通用",
-                            warehouse: "綠園二廠/包材倉", // 注入主倉代表
-                            stock: 0,
-                            isVirtual: true
+                            category: stdItem.category || "包材", itemCode: stdItem.code, itemName: stdItem.name,
+                            unit: stdItem.unit || "通用", warehouse: "綠園二廠/包材倉", stock: 0, isVirtual: true
                         });
-                        
-                        if (!inventoryLookup[cleanStdCode]) {
-                            inventoryLookup[cleanStdCode] = {};
-                        }
-                        if (inventoryLookup[cleanStdCode]["綠園二廠/包材倉"] === undefined) {
-                            inventoryLookup[cleanStdCode]["綠園二廠/包材倉"] = 0;
-                        }
+                        if (!inventoryLookup[cleanStdCode]) inventoryLookup[cleanStdCode] = {};
+                        if (inventoryLookup[cleanStdCode]["綠園二廠/包材倉"] === undefined) inventoryLookup[cleanStdCode]["綠園二廠/包材倉"] = 0;
                     }
                 }
             }
 
-            // 3. 開始進行缺貨判定
             processedRows = allRowsToAnalyze
-                .filter(row => !DISPLAY_ONLY_WAREHOUSES.includes(row.warehouse)) // 過濾掉純顯示的倉庫列，避免表格重複
+                .filter(row => !DISPLAY_ONLY_WAREHOUSES.includes(row.warehouse)) 
                 .map(row => {
                 let needReplenish = false;
                 let needPurchase = false;
@@ -1082,23 +957,16 @@
                 const cleanCode = String(row.itemCode).toUpperCase().trim();
                 const stdItem = findStandard(cleanCode, row.unit);
                 const refillLimit = stdItem ? stdItem.refill : null;
-                
-                // 🚀 抽取「包裝/原料倉」庫存
                 const stockInRawMaterial = inventoryLookup[cleanCode]["包裝/原料倉"] || 0;
 
-                let displayName = row.itemName;
-                if (!displayName && stdItem && stdItem.name) {
-                    displayName = stdItem.name;
-                }
+                let displayName = row.itemName || (stdItem && stdItem.name ? stdItem.name : '未知包材品項');
 
-                // 只有「主倉資料列」才會進行警戒判定
                 if (MAIN_WAREHOUSES.includes(row.warehouse)) {
                     if (refillLimit !== null) {
                         const stockInFactory1 = inventoryLookup[cleanCode]["綠園二廠/包材倉"] || 0;
                         const stockInFactory2 = inventoryLookup[cleanCode]["綠園二廠/常溫區"] || 0;
                         const totalMainStock = stockInFactory1 + stockInFactory2;
 
-                        // 如果主倉庫存低於標準
                         if (totalMainStock < refillLimit) {
                             const stockInCarport1 = inventoryLookup[cleanCode]["車棚1倉/包材倉"] || 0;
                             const stockInCarport2 = inventoryLookup[cleanCode]["車棚2倉/久儲包材倉"] || 0;
@@ -1108,15 +976,9 @@
                             if (totalBackupStock > 0) {
                                 needReplenish = true;
                                 const backups = [];
-                                if (stockInCarport1 > 0) {
-                                    backups.push(`車棚1倉: <span class="text-rose-700 bg-rose-100 px-1.5 py-0.5 rounded font-mono font-bold text-[13px]">${stockInCarport1}</span>`);
-                                }
-                                if (stockInCarport2 > 0) {
-                                    backups.push(`車棚2倉: <span class="text-rose-700 bg-rose-100 px-1.5 py-0.5 rounded font-mono font-bold text-[13px]">${stockInCarport2}</span>`);
-                                }
-                                if (stockInLowTemp > 0) {
-                                    backups.push(`63-5常溫: <span class="text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded font-mono font-bold text-[13px]">${stockInLowTemp}</span>`);
-                                }
+                                if (stockInCarport1 > 0) backups.push(`車棚1倉: <span class="text-rose-700 bg-rose-100 px-1.5 py-0.5 rounded font-mono font-bold text-[13px]">${stockInCarport1}</span>`);
+                                if (stockInCarport2 > 0) backups.push(`車棚2倉: <span class="text-rose-700 bg-rose-100 px-1.5 py-0.5 rounded font-mono font-bold text-[13px]">${stockInCarport2}</span>`);
+                                if (stockInLowTemp > 0) backups.push(`63-5常溫: <span class="text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded font-mono font-bold text-[13px]">${stockInLowTemp}</span>`);
                                 backupStockInfo = backups.join(' / ');
                             } else {
                                 needPurchase = true; 
@@ -1128,14 +990,8 @@
                 }
 
                 return {
-                    ...row,
-                    itemName: displayName || '未知包材品項',
-                    refill: refillLimit,
-                    stockInRawMaterial: stockInRawMaterial, // 新增的屬性
-                    needReplenish,
-                    needPurchase,
-                    isNoStandard,
-                    backupStockInfo
+                    ...row, itemName: displayName, refill: refillLimit, stockInRawMaterial: stockInRawMaterial,
+                    needReplenish, needPurchase, isNoStandard, backupStockInfo
                 };
             });
 
@@ -1149,13 +1005,12 @@
             
             updateFilterButtons(currentFilter);
             checkCelebration();
-            showToast(`成功自動對應 ${originalRows.length} 筆包材五倉資料與防漏空判定`, 'check', 'text-emerald-400');
+            showToast(`成功自動對應 ${originalRows.length} 筆包材五倉資料`, 'check', 'text-emerald-400');
         }
 
         function checkCelebration() {
             const replenishCount = processedRows.filter(r => r.needReplenish).length;
             const purchaseCount = processedRows.filter(r => r.needPurchase).length;
-            
             const allSafeCelebration = document.getElementById('allSafeCelebration');
             const tableContainer = document.getElementById('tableContainer');
             
@@ -1182,19 +1037,10 @@
                 const formItemName = document.getElementById('formItemName');
                 const formRefill = document.getElementById('formRefill');
 
-                if (formItemCode) {
-                    formItemCode.value = item.code;
-                    formItemCode.setAttribute('readonly', true);
-                }
-                if (formUnit) {
-                    formUnit.value = item.unit || '';
-                    formUnit.setAttribute('readonly', true);
-                }
+                if (formItemCode) { formItemCode.value = item.code; formItemCode.setAttribute('readonly', true); }
+                if (formUnit) { formUnit.value = item.unit || ''; formUnit.setAttribute('readonly', true); }
                 if (formItemName) formItemName.value = item.name;
-                if (formRefill) {
-                    formRefill.value = item.refill;
-                    formRefill.focus();
-                }
+                if (formRefill) { formRefill.value = item.refill; formRefill.focus(); }
                 document.getElementById('formTitle').textContent = `正在修改: ${item.code}`;
                 showToast(`已載入 ${item.code} 設定，請在左側修改標準數量後點選儲存`, 'info', 'text-sky-400');
             }
@@ -1208,9 +1054,7 @@
                 saveStandardsToStorage();
                 renderSettingsList();
                 showToast(`已刪除品項 ${item.code} 的補貨標準`, 'trash', 'text-rose-400');
-                if (originalRows.length > 0) {
-                    analyzeInventory();
-                }
+                if (originalRows.length > 0) analyzeInventory();
             }
         }
 
@@ -1226,27 +1070,13 @@
                 const formItemName = document.getElementById('formItemName');
                 const formRefill = document.getElementById('formRefill');
 
-                if (formItemCode) {
-                    formItemCode.value = code;
-                    formItemCode.setAttribute('readonly', true);
-                }
-                if (formUnit) {
-                    formUnit.value = unit;
-                    formUnit.setAttribute('readonly', true);
-                }
+                if (formItemCode) { formItemCode.value = code; formItemCode.setAttribute('readonly', true); }
+                if (formUnit) { formUnit.value = unit; formUnit.setAttribute('readonly', true); }
                 if (formItemName) formItemName.value = name;
-                if (formRefill) {
-                    formRefill.value = '';
-                    formRefill.focus();
-                }
+                if (formRefill) { formRefill.value = ''; formRefill.focus(); }
                 document.getElementById('formTitle').textContent = `設定品項標準: ${code}`;
             };
-
-            if (isUnlocked) {
-                executeQuickSet();
-            } else {
-                openPasswordModal(executeQuickSet);
-            }
+            if (isUnlocked) { executeQuickSet(); } else { openPasswordModal(executeQuickSet); }
         }
 
         function switchFilterToAll() {
@@ -1267,28 +1097,22 @@
             if (inputSettingsPassword) inputSettingsPassword.value = '';
             
             if (passwordModal) {
-                passwordModal.classList.remove('pointer-events-none');
-                passwordModal.classList.remove('opacity-0');
+                passwordModal.classList.remove('pointer-events-none', 'opacity-0');
                 passwordModal.classList.add('opacity-100');
             }
             if (passwordModalCard) {
                 passwordModalCard.classList.remove('scale-95');
                 passwordModalCard.classList.add('scale-100');
             }
-            
-            setTimeout(() => {
-                if (inputSettingsPassword) inputSettingsPassword.focus();
-            }, 150);
+            setTimeout(() => { if (inputSettingsPassword) inputSettingsPassword.focus(); }, 150);
         }
 
         function closePasswordModal() {
             const passwordModal = document.getElementById('passwordModal');
             const passwordModalCard = document.getElementById('passwordModalCard');
-
             if (passwordModal) {
                 passwordModal.classList.remove('opacity-100');
-                passwordModal.classList.add('opacity-0');
-                passwordModal.classList.add('pointer-events-none');
+                passwordModal.classList.add('opacity-0', 'pointer-events-none');
             }
             if (passwordModalCard) {
                 passwordModalCard.classList.remove('scale-100');
@@ -1303,26 +1127,10 @@
             const btnPurchaseOnly = document.getElementById('btnPurchaseOnly');
             const btnNoStdOnly = document.getElementById('btnNoStdOnly');
 
-            if (btnAll) {
-                btnAll.className = filter === 'all' 
-                    ? "px-4 py-2 rounded-lg text-sm font-semibold bg-slate-900 text-white transition-colors" 
-                    : "px-4 py-2 rounded-lg text-sm font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors";
-            }
-            if (btnReplenishOnly) {
-                btnReplenishOnly.className = filter === 'replenish'
-                    ? "px-4 py-2 rounded-lg text-sm font-semibold bg-rose-600 text-white transition-colors flex items-center shadow-md"
-                    : "px-4 py-2 rounded-lg text-sm font-semibold bg-slate-100 text-rose-600 hover:bg-rose-50 transition-colors flex items-center";
-            }
-            if (btnPurchaseOnly) {
-                btnPurchaseOnly.className = filter === 'purchase'
-                    ? "px-4 py-2 rounded-lg text-sm font-semibold bg-purple-600 text-white transition-colors flex items-center shadow-md"
-                    : "px-4 py-2 rounded-lg text-sm font-semibold bg-slate-100 text-purple-700 hover:bg-purple-100 transition-colors flex items-center";
-            }
-            if (btnNoStdOnly) {
-                btnNoStdOnly.className = filter === 'no_std'
-                    ? "px-4 py-2 rounded-lg text-sm font-semibold bg-amber-600 text-white transition-colors flex items-center shadow-md"
-                    : "px-4 py-2 rounded-lg text-sm font-semibold bg-slate-100 text-amber-700 hover:bg-amber-50 transition-colors flex items-center";
-            }
+            if (btnAll) btnAll.className = filter === 'all' ? "px-4 py-2 rounded-lg text-sm font-semibold bg-slate-900 text-white transition-colors" : "px-4 py-2 rounded-lg text-sm font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors";
+            if (btnReplenishOnly) btnReplenishOnly.className = filter === 'replenish' ? "px-4 py-2 rounded-lg text-sm font-semibold bg-rose-600 text-white transition-colors flex items-center shadow-md" : "px-4 py-2 rounded-lg text-sm font-semibold bg-slate-100 text-rose-600 hover:bg-rose-50 transition-colors flex items-center";
+            if (btnPurchaseOnly) btnPurchaseOnly.className = filter === 'purchase' ? "px-4 py-2 rounded-lg text-sm font-semibold bg-purple-600 text-white transition-colors flex items-center shadow-md" : "px-4 py-2 rounded-lg text-sm font-semibold bg-slate-100 text-purple-700 hover:bg-purple-100 transition-colors flex items-center";
+            if (btnNoStdOnly) btnNoStdOnly.className = filter === 'no_std' ? "px-4 py-2 rounded-lg text-sm font-semibold bg-amber-600 text-white transition-colors flex items-center shadow-md" : "px-4 py-2 rounded-lg text-sm font-semibold bg-slate-100 text-amber-700 hover:bg-amber-50 transition-colors flex items-center";
         }
 
         function renderTable() {
@@ -1331,118 +1139,52 @@
             tableBody.innerHTML = '';
             let displayRows = processedRows;
 
-            if (currentFilter === 'replenish') {
-                displayRows = displayRows.filter(r => r.needReplenish);
-            } else if (currentFilter === 'purchase') {
-                displayRows = displayRows.filter(r => r.needPurchase);
-            } else if (currentFilter === 'no_std') {
-                displayRows = displayRows.filter(r => r.isNoStandard);
-            }
+            if (currentFilter === 'replenish') displayRows = displayRows.filter(r => r.needReplenish);
+            else if (currentFilter === 'purchase') displayRows = displayRows.filter(r => r.needPurchase);
+            else if (currentFilter === 'no_std') displayRows = displayRows.filter(r => r.isNoStandard);
 
             const searchInput = document.getElementById('searchInput');
             const query = searchInput ? searchInput.value.toLowerCase() : '';
             if (query) {
                 displayRows = displayRows.filter(r => 
-                    r.itemCode.toLowerCase().includes(query) || 
-                    r.itemName.toLowerCase().includes(query) ||
-                    r.unit.toLowerCase().includes(query) ||
-                    r.category.toLowerCase().includes(query)
+                    r.itemCode.toLowerCase().includes(query) || r.itemName.toLowerCase().includes(query) || r.unit.toLowerCase().includes(query) || r.category.toLowerCase().includes(query)
                 );
             }
 
             if (displayRows.length === 0) {
-                tableBody.innerHTML = `
-                    <tr>
-                        <td colspan="9" class="px-6 py-12 text-center text-slate-400">
-                            <div class="flex flex-col items-center justify-center">
-                                <i data-lucide="search-code" class="w-8 h-8 mb-2 text-slate-300"></i>
-                                <span>找不到符合條件的包材數據紀錄</span>
-                            </div>
-                        </td>
-                    </tr>
-                `;
+                tableBody.innerHTML = `<tr><td colspan="9" class="px-6 py-12 text-center text-slate-400"><div class="flex flex-col items-center justify-center"><i data-lucide="search-code" class="w-8 h-8 mb-2 text-slate-300"></i><span>找不到符合條件的包材數據紀錄</span></div></td></tr>`;
                 if (window.lucide) window.lucide.createIcons();
                 return;
             }
 
             displayRows.forEach(row => {
                 const tr = document.createElement('tr');
-                
-                if (row.needReplenish) {
-                    tr.className = "bg-rose-50/95 hover:bg-rose-100/95 transition-colors border-l-4 border-rose-500 font-medium";
-                } else if (row.needPurchase) {
-                    tr.className = "bg-purple-50/95 hover:bg-purple-100/95 transition-colors border-l-4 border-purple-500 font-medium";
-                } else if (row.isNoStandard) {
-                    tr.className = "bg-amber-50/40 hover:bg-amber-100/40 text-slate-700";
-                } else {
-                    tr.className = "hover:bg-slate-50/80 transition-colors text-slate-700";
-                }
+                if (row.needReplenish) tr.className = "bg-rose-50/95 hover:bg-rose-100/95 transition-colors border-l-4 border-rose-500 font-medium";
+                else if (row.needPurchase) tr.className = "bg-purple-50/95 hover:bg-purple-100/95 transition-colors border-l-4 border-purple-500 font-medium";
+                else if (row.isNoStandard) tr.className = "bg-amber-50/40 hover:bg-amber-100/40 text-slate-700";
+                else tr.className = "hover:bg-slate-50/80 transition-colors text-slate-700";
 
                 let refillCell = '';
                 const compositeKey = makeKey(row.itemCode, row.unit);
                 if (row.refill !== null) {
                     refillCell = `<span class="font-mono font-bold text-slate-900 text-sm">${row.refill.toLocaleString()}</span>`;
                 } else if (MAIN_WAREHOUSES.includes(row.warehouse)) {
-                    refillCell = `
-                        <button onclick="window.quickSetStd('${compositeKey}', '${row.itemName}')" class="text-xs text-amber-600 hover:text-amber-800 bg-amber-50 hover:bg-amber-100 px-2 py-0.5 rounded border border-amber-200 flex items-center inline-flex">
-                            <i data-lucide="plus" class="w-3 h-3 mr-0.5"></i> 設定標準
-                        </button>
-                    `;
+                    refillCell = `<button onclick="window.quickSetStd('${compositeKey}', '${row.itemName}')" class="text-xs text-amber-600 hover:text-amber-800 bg-amber-50 hover:bg-amber-100 px-2 py-0.5 rounded border border-amber-200 flex items-center inline-flex"><i data-lucide="plus" class="w-3 h-3 mr-0.5"></i> 設定標準</button>`;
                 } else {
                     refillCell = `<span class="text-slate-300">-</span>`;
                 }
 
                 let statusBadge = '';
                 if (row.needReplenish) {
-                    statusBadge = `
-                        <div class="inline-flex flex-col items-center space-y-1.5 py-1">
-                            <span class="inline-flex items-center px-2 py-1 rounded bg-rose-200 text-rose-800 text-xs font-bold border border-rose-300 animate-pulse">
-                                <i data-lucide="alert-circle" class="w-3.5 h-3.5 mr-1"></i>
-                                內場需補貨
-                            </span>
-                            <span class="text-xs text-slate-600 mt-1 font-semibold flex flex-wrap items-center justify-center gap-1">
-                                後援: ${row.backupStockInfo}
-                            </span>
-                        </div>
-                    `;
+                    statusBadge = `<div class="inline-flex flex-col items-center space-y-1.5 py-1"><span class="inline-flex items-center px-2 py-1 rounded bg-rose-200 text-rose-800 text-xs font-bold border border-rose-300 animate-pulse"><i data-lucide="alert-circle" class="w-3.5 h-3.5 mr-1"></i>內場需調撥</span><span class="text-xs text-slate-600 mt-1 font-semibold flex flex-wrap items-center justify-center gap-1">後援: ${row.backupStockInfo}</span></div>`;
                 } else if (row.needPurchase) {
-                    statusBadge = `
-                        <div class="inline-flex flex-col items-center space-y-1.5 py-1">
-                            <span class="inline-flex items-center px-2 py-1 rounded bg-purple-200 text-purple-800 text-xs font-bold border border-purple-300 animate-pulse shadow-sm shadow-purple-500/20">
-                                <i data-lucide="shopping-cart" class="w-3.5 h-3.5 mr-1"></i>
-                                缺貨需採購
-                            </span>
-                            <span class="text-[10px] text-purple-600 mt-1 font-semibold flex items-center gap-1">
-                                其他後援倉已無庫存
-                            </span>
-                        </div>
-                    `;
+                    statusBadge = `<div class="inline-flex flex-col items-center space-y-1.5 py-1"><span class="inline-flex items-center px-2 py-1 rounded bg-purple-200 text-purple-800 text-xs font-bold border border-purple-300 animate-pulse shadow-sm shadow-purple-500/20"><i data-lucide="shopping-cart" class="w-3.5 h-3.5 mr-1"></i>缺貨需採購</span><span class="text-[10px] text-purple-600 mt-1 font-semibold flex items-center gap-1">其他後援倉已無庫存</span></div>`;
                 } else if (MAIN_WAREHOUSES.includes(row.warehouse)) {
-                    if (row.isNoStandard) {
-                        statusBadge = `
-                            <span class="inline-flex items-center px-2 py-1 rounded bg-amber-100 text-amber-800 text-xs font-medium">
-                                未設最低標準
-                            </span>
-                        `;
-                    } else if (row.stock < row.refill) {
-                        statusBadge = `
-                            <span class="inline-flex items-center px-2 py-1 rounded bg-slate-200 text-slate-800 text-xs font-medium">
-                                生產倉不足但後援無貨
-                            </span>
-                        `;
-                    } else {
-                        statusBadge = `
-                            <span class="inline-flex items-center px-2 py-1 rounded bg-emerald-100 text-emerald-800 text-xs font-medium">
-                                庫存安全
-                            </span>
-                        `;
-                    }
+                    if (row.isNoStandard) statusBadge = `<span class="inline-flex items-center px-2 py-1 rounded bg-amber-100 text-amber-800 text-xs font-medium">未設最低標準</span>`;
+                    else if (row.stock < row.refill) statusBadge = `<span class="inline-flex items-center px-2 py-1 rounded bg-slate-200 text-slate-800 text-xs font-medium">生產倉不足但後援無貨</span>`;
+                    else statusBadge = `<span class="inline-flex items-center px-2 py-1 rounded bg-emerald-100 text-emerald-800 text-xs font-medium">庫存安全</span>`;
                 } else {
-                    statusBadge = `
-                        <span class="inline-flex items-center px-2 py-1 rounded bg-slate-100 text-slate-600 text-xs">
-                            後援常備庫存
-                        </span>
-                    `;
+                    statusBadge = `<span class="inline-flex items-center px-2 py-1 rounded bg-slate-100 text-slate-600 text-xs">後援常備庫存</span>`;
                 }
 
                 tr.innerHTML = `
@@ -1450,24 +1192,12 @@
                     <td class="px-6 py-4 font-mono font-semibold">${row.itemCode}</td>
                     <td class="px-6 py-4 text-slate-900">${row.itemName}</td>
                     <td class="px-6 py-4 font-medium text-slate-500 text-xs">${row.unit}</td>
-                    <td class="px-6 py-4">
-                        <span class="px-2 py-0.5 rounded text-xs ${
-                            MAIN_WAREHOUSES.includes(row.warehouse) 
-                            ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' 
-                            : 'bg-slate-100 text-slate-700 border border-slate-200'
-                        }">
-                            ${row.warehouse}
-                        </span>
-                    </td>
+                    <td class="px-6 py-4"><span class="px-2 py-0.5 rounded text-xs ${MAIN_WAREHOUSES.includes(row.warehouse) ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-slate-100 text-slate-700 border border-slate-200'}">${row.warehouse}</span></td>
                     <td class="px-6 py-4 text-right font-mono font-extrabold text-[18px] tracking-tight ${row.needReplenish ? 'text-rose-600' : row.needPurchase ? 'text-purple-600' : 'text-slate-900'}">${row.stock.toLocaleString()}</td>
                     <td class="px-6 py-4 text-right">${refillCell}</td>
-                    <!-- 🌟 這是新增的 包裝/原料倉 獨立即時庫存顯示欄位 -->
-                    <td class="px-6 py-4 text-right font-mono font-bold text-indigo-600 bg-indigo-50/30">
-                        ${row.stockInRawMaterial.toLocaleString()}
-                    </td>
+                    <td class="px-6 py-4 text-right font-mono font-bold text-emerald-600 bg-emerald-50/30">${row.stockInRawMaterial.toLocaleString()}</td>
                     <td class="px-6 py-4 text-center">${statusBadge}</td>
                 `;
-
                 tableBody.appendChild(tr);
             });
 
@@ -1485,18 +1215,14 @@
             const btnNoStdCount = document.getElementById('btnNoStdCount');
 
             if (statTotal) statTotal.textContent = processedRows.length;
-            
             const uniqueItems = new Set(processedRows.map(r => r.itemCode));
             if (statItems) statItems.textContent = uniqueItems.size;
-
             const replenishCount = processedRows.filter(r => r.needReplenish).length;
             if (statReplenish) statReplenish.textContent = replenishCount;
             if (btnReplenishCount) btnReplenishCount.textContent = replenishCount;
-
             const purchaseCount = processedRows.filter(r => r.needPurchase).length;
             if (statPurchase) statPurchase.textContent = purchaseCount;
             if (btnPurchaseCount) btnPurchaseCount.textContent = purchaseCount;
-
             const noStdCount = processedRows.filter(r => r.isNoStandard).length;
             if (statNoStandard) statNoStandard.textContent = noStdCount;
             if (btnNoStdCount) btnNoStdCount.textContent = noStdCount;
@@ -1529,16 +1255,13 @@
             const toastIcon = document.getElementById('toastIcon');
 
             if (!toast || !toastMessage || !toastIcon) return;
-
             toastMessage.textContent = message;
             toastIcon.setAttribute('data-lucide', iconName);
             toastIcon.className = `w-5 h-5 ${iconColorClass}`;
-            
             if (window.lucide) window.lucide.createIcons();
 
             toast.classList.remove('translate-y-20', 'opacity-0');
             toast.classList.add('translate-y-0', 'opacity-100');
-
             setTimeout(() => {
                 toast.classList.remove('translate-y-0', 'opacity-100');
                 toast.classList.add('translate-y-20', 'opacity-0');
@@ -1546,7 +1269,7 @@
         }
 
         // ==========================================
-        // 🔒 將函數掛載至 window 全域作用域
+        // 3. 綁定 Window 全域方法 (供 HTML onClick 調用)
         // ==========================================
         window.editStd = editStd;
         window.deleteStd = deleteStd;
@@ -1559,11 +1282,14 @@
         window.closePasswordModal = closePasswordModal;
 
         // ==========================================
-        // 3. 初始化加載與 DOM 事件註冊
+        // 4. 執行初始化邏輯
         // ==========================================
         initClock();
         loadStandardsFromStorage();
 
+        // ==========================================
+        // 5. DOM 載入後執行事件與綁定
+        // ==========================================
         window.addEventListener('DOMContentLoaded', () => {
             const defaultUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRqhij3tYIKCP5YwznxO0uCrthJDE09xE8pOG76mejZDrH6xFyPRndBKnx9UBwQmnxxyvcE9vUUZJqk/pub?gid=322034433&single=true&output=csv";
             const savedUrl = localStorage.getItem('google_sheet_csv_url_package');
@@ -1576,7 +1302,7 @@
             autoLoadBackupJson();
             autoFetchCloudOnLoad(finalUrl);
             
-            // DOM 事件綁定
+            // DOM 事件綁定區
             const tabInventory = document.getElementById('tabInventory');
             const tabSettings = document.getElementById('tabSettings');
             const btnLockSettings = document.getElementById('btnLockSettings');
@@ -1600,40 +1326,18 @@
             const btnNoStdOnly = document.getElementById('btnNoStdOnly');
             const searchInputEl = document.getElementById('searchInput');
 
-            if (tabInventory) {
-                tabInventory.addEventListener('click', () => {
-                    setActiveTab('inventory');
-                });
-            }
+            if (tabInventory) tabInventory.addEventListener('click', () => setActiveTab('inventory'));
+            if (tabSettings) tabSettings.addEventListener('click', () => {
+                if (isUnlocked) { setActiveTab('settings'); window.renderSettingsList(); } 
+                else { openPasswordModal(() => { setActiveTab('settings'); window.renderSettingsList(); }); }
+            });
 
-            if (tabSettings) {
-                tabSettings.addEventListener('click', () => {
-                    if (isUnlocked) {
-                        setActiveTab('settings');
-                        window.renderSettingsList();
-                    } else {
-                        openPasswordModal(() => {
-                            setActiveTab('settings');
-                            window.renderSettingsList();
-                        });
-                    }
-                });
-            }
-
-            if (btnLockSettings) {
-                btnLockSettings.addEventListener('click', () => {
-                    isUnlocked = false;
-                    setActiveTab('inventory');
-                    showToast('已安全鎖定補貨標準管理頁面！', 'lock', 'text-slate-400');
-                });
-            }
-
-            if (btnCancelPassword) {
-                btnCancelPassword.addEventListener('click', () => {
-                    closePasswordModal();
-                    showToast('已取消密碼驗證。', 'shield-alert', 'text-amber-500');
-                });
-            }
+            if (btnLockSettings) btnLockSettings.addEventListener('click', () => {
+                isUnlocked = false; setActiveTab('inventory'); showToast('已安全鎖定管理頁面！', 'lock', 'text-slate-400');
+            });
+            if (btnCancelPassword) btnCancelPassword.addEventListener('click', () => {
+                closePasswordModal(); showToast('已取消密碼驗證。', 'shield-alert', 'text-amber-500');
+            });
 
             if (passwordForm) {
                 passwordForm.addEventListener('submit', (e) => {
@@ -1641,22 +1345,15 @@
                     const inputSettingsPassword = document.getElementById('inputSettingsPassword');
                     const passwordErrorMsg = document.getElementById('passwordErrorMsg');
                     const passwordModalCard = document.getElementById('passwordModalCard');
-                    
-                    const inputVal = inputSettingsPassword ? inputSettingsPassword.value : '';
-                    if (inputVal === SETTINGS_PASSWORD) {
+                    if (inputSettingsPassword && inputSettingsPassword.value === SETTINGS_PASSWORD) {
                         isUnlocked = true;
                         if (passwordErrorMsg) passwordErrorMsg.classList.add('hidden');
                         closePasswordModal();
-                        showToast('密碼驗證成功，已解鎖補貨標準管理中心。', 'shield-check', 'text-emerald-400');
-                        if (typeof pendingAction === 'function') {
-                            pendingAction();
-                        }
+                        showToast('驗證成功，已解鎖補貨標準管理中心。', 'shield-check', 'text-emerald-400');
+                        if (typeof pendingAction === 'function') pendingAction();
                     } else {
                         if (passwordErrorMsg) passwordErrorMsg.classList.remove('hidden');
-                        if (inputSettingsPassword) {
-                            inputSettingsPassword.value = '';
-                            inputSettingsPassword.focus();
-                        }
+                        if (inputSettingsPassword) { inputSettingsPassword.value = ''; inputSettingsPassword.focus(); }
                         if (passwordModalCard) {
                             passwordModalCard.classList.add('animate-bounce');
                             setTimeout(() => passwordModalCard.classList.remove('animate-bounce'), 500);
@@ -1667,28 +1364,19 @@
 
             if (btnResetToDefaults) {
                 btnResetToDefaults.addEventListener('click', () => {
-                    if (confirm('確定要一鍵重置，同步回網頁預設的包材最低庫存嗎？您的自訂變更將會被覆蓋！')) {
+                    if (confirm('確定要一鍵重置，同步回預設的包材最低庫存嗎？自訂變更將被覆蓋！')) {
                         replenishStandards = JSON.parse(JSON.stringify(DEFAULT_STANDARDS));
-                        saveStandardsToStorage();
-                        window.renderSettingsList();
-                        showToast('已成功強制同步本機快取，重置為預設標準！', 'rotate-ccw', 'text-emerald-400');
-                        if (originalRows.length > 0) {
-                            analyzeInventory();
-                        }
+                        saveStandardsToStorage(); window.renderSettingsList();
+                        showToast('已成功重置為預設標準！', 'rotate-ccw', 'text-emerald-400');
+                        if (originalRows.length > 0) analyzeInventory();
                     }
                 });
             }
 
-            if (btnTriggerImportBackup) {
-                btnTriggerImportBackup.addEventListener('click', () => {
-                    if (backupFileInput) backupFileInput.click();
-                });
-            }
-
+            if (btnTriggerImportBackup) btnTriggerImportBackup.addEventListener('click', () => { if (backupFileInput) backupFileInput.click(); });
             if (backupFileInput) {
                 backupFileInput.addEventListener('change', (e) => {
                     if (e.target.files.length > 0) {
-                        const file = e.target.files[0];
                         const reader = new FileReader();
                         reader.onload = function(evt) {
                             try {
@@ -1699,46 +1387,28 @@
                                     if (item && item.code && item.refill !== undefined) {
                                         const cleanCode = String(item.code).toUpperCase().trim();
                                         replenishStandards[cleanCode] = {
-                                            name: item.name,
-                                            code: cleanCode,
-                                            unit: item.unit || '',
-                                            refill: parseFloat(item.refill) || 0,
-                                            category: item.category || '包材'
+                                            name: item.name, code: cleanCode, unit: item.unit || '', refill: parseFloat(item.refill) || 0, category: item.category || '包材'
                                         };
                                         validCount++;
                                     }
                                 }
                                 if (validCount > 0) {
-                                    saveStandardsToStorage();
-                                    window.renderSettingsList();
-                                    showToast(`還原成功！已成功同步匯入 ${validCount} 個包材補貨門檻。`, 'shield-check', 'text-emerald-400');
-                                    if (originalRows.length > 0) {
-                                        analyzeInventory();
-                                    }
-                                } else {
-                                    showToast('匯入失敗：這不是正確的補貨標準備份檔案格式。', 'alert-circle', 'text-rose-400');
+                                    saveStandardsToStorage(); window.renderSettingsList();
+                                    showToast(`還原成功！已同步匯入 ${validCount} 個補貨門檻。`, 'shield-check', 'text-emerald-400');
+                                    if (originalRows.length > 0) analyzeInventory();
                                 }
-                            } catch (err) {
-                                showToast(`還原解析失敗: ${err.message}`, 'alert-circle', 'text-rose-400');
-                            }
+                            } catch (err) { showToast(`還原解析失敗: ${err.message}`, 'alert-circle', 'text-rose-400'); }
                         };
-                        reader.readAsText(file);
+                        reader.readAsText(e.target.files[0]);
                         backupFileInput.value = '';
                     }
                 });
             }
 
-            if (btnImportStd) {
-                btnImportStd.addEventListener('click', () => {
-                    if (importStdFile) importStdFile.click();
-                });
-            }
-
+            if (btnImportStd) btnImportStd.addEventListener('click', () => { if (importStdFile) importStdFile.click(); });
             if (importStdFile) {
                 importStdFile.addEventListener('change', (e) => {
-                    if (e.target.files.length > 0) {
-                        handleFileSelect(e.target.files[0]);
-                    }
+                    if (e.target.files.length > 0) handleFileSelect(e.target.files[0], true);
                 });
             }
 
@@ -1759,23 +1429,15 @@
 
                     replenishStandards[code] = {
                         name: name || (replenishStandards[code] ? replenishStandards[code].name : '未命名包材'),
-                        code: code,
-                        unit: unit,
-                        refill: val,
-                        category: '包材'
+                        code: code, unit: unit, refill: val, category: '包材'
                     };
 
-                    saveStandardsToStorage();
-                    window.renderSettingsList();
-                    stdForm.reset();
+                    saveStandardsToStorage(); window.renderSettingsList(); stdForm.reset();
                     if (formItemCode) formItemCode.removeAttribute('readonly');
                     if (formUnit) formUnit.removeAttribute('readonly');
                     document.getElementById('formTitle').textContent = "新增/修改補貨標準";
                     showToast(`成功儲存 [${code}] 最低庫存標準為 ${val}`, 'check', 'text-emerald-400');
-                    
-                    if (originalRows.length > 0) {
-                        analyzeInventory();
-                    }
+                    if (originalRows.length > 0) analyzeInventory();
                 });
             }
 
@@ -1790,22 +1452,13 @@
                 });
             }
 
-            if (searchStdInput) {
-                searchStdInput.addEventListener('input', () => {
-                    window.renderSettingsList();
-                });
-            }
-
+            if (searchStdInput) searchStdInput.addEventListener('input', () => window.renderSettingsList());
             if (btnClearAllStds) {
                 btnClearAllStds.addEventListener('click', () => {
-                    if (confirm('警告！這將會清除您本機所有的最低庫存標準（包含預設包材）。確定要全部清空嗎？')) {
-                        replenishStandards = {};
-                        saveStandardsToStorage();
-                        window.renderSettingsList();
+                    if (confirm('警告！確定要全部清空所有的最低庫存標準（包含預設）嗎？')) {
+                        replenishStandards = {}; saveStandardsToStorage(); window.renderSettingsList();
                         showToast('已清空所有補貨標準！', 'trash', 'text-rose-400');
-                        if (originalRows.length > 0) {
-                            analyzeInventory();
-                        }
+                        if (originalRows.length > 0) analyzeInventory();
                     }
                 });
             }
@@ -1814,141 +1467,59 @@
                 btnSyncCloud.addEventListener('click', () => {
                     const cloudUrlInput = document.getElementById('cloudUrlInput');
                     const targetUrl = cloudUrlInput ? cloudUrlInput.value.trim() : '';
-                    
                     if (!targetUrl) {
-                        showToast('請先貼上有效的 Google Sheet CSV 發佈網址或 ERP API 網址！', 'alert-circle', 'text-rose-400');
+                        showToast('請先貼上有效的 Google Sheet CSV 發佈網址！', 'alert-circle', 'text-rose-400');
                         if (cloudUrlInput) cloudUrlInput.focus();
                         return;
                     }
-
                     localStorage.setItem('google_sheet_csv_url_package', targetUrl);
-                    const dataSourceTag = document.getElementById('dataSourceTag');
-                    const loadingStatusText = document.getElementById('loadingStatusText');
-                    if (dataSourceTag) dataSourceTag.textContent = `* 數據載入來源: 🌐 Google Sheet 雲端實時更新`;
-                    if (loadingStatusText) loadingStatusText.textContent = "正在與 Google Sheet 建立加密連線、拉取最新包材結餘中...";
-                    showLoading(true);
-
-                    const busterUrl = targetUrl + (targetUrl.includes('?') ? '&' : '?') + 't=' + new Date().getTime();
-
-                    fetch(busterUrl, { cache: 'no-store' })
-                        .then(response => {
-                            if (!response.ok) {
-                                throw new Error('無法讀取該網址，請確認您的 Google 試算表是否已公開且格式正確。');
-                            }
-                            return response.text();
-                        })
-                        .then(csvText => {
-                            parseCSV(csvText);
-                        })
-                        .catch(err => {
-                            console.error(err);
-                            showLoading(false);
-                            const emptyState = document.getElementById('emptyState');
-                            if (emptyState) emptyState.classList.remove('hidden');
-                            showToast(`同步失敗: ${err.message}`, 'alert-circle', 'text-rose-400');
-                        });
+                    autoFetchCloudOnLoad(targetUrl);
                 });
             }
 
             if (dropZone && fileInput) {
                 dropZone.addEventListener('click', () => fileInput.click());
-                
-                dropZone.addEventListener('dragover', (e) => {
-                    e.preventDefault();
-                    dropZone.classList.add('border-emerald-400', 'bg-emerald-50/50');
-                });
-
-                dropZone.addEventListener('dragleave', () => {
-                    dropZone.classList.remove('border-emerald-400', 'bg-emerald-50/50');
-                });
-
+                dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('border-emerald-400', 'bg-emerald-50/50'); });
+                dropZone.addEventListener('dragleave', () => dropZone.classList.remove('border-emerald-400', 'bg-emerald-50/50'));
                 dropZone.addEventListener('drop', (e) => {
-                    e.preventDefault();
-                    dropZone.classList.remove('border-emerald-400', 'bg-emerald-50/50');
-                    if (e.dataTransfer.files.length > 0) {
-                        handleFileSelect(e.dataTransfer.files[0]);
-                    }
+                    e.preventDefault(); dropZone.classList.remove('border-emerald-400', 'bg-emerald-50/50');
+                    if (e.dataTransfer.files.length > 0) handleFileSelect(e.dataTransfer.files[0], false);
                 });
-
                 fileInput.addEventListener('change', (e) => {
-                    if (e.target.files.length > 0) {
-                        handleFileSelect(e.target.files[0]);
-                    }
+                    if (e.target.files.length > 0) handleFileSelect(e.target.files[0], false);
                 });
             }
 
-            function handleFileSelect(file) {
+            function handleFileSelect(file, isLearningStandards = false) {
                 const dataSourceTag = document.getElementById('dataSourceTag');
-                if (dataSourceTag) dataSourceTag.textContent = `* 數據載入來源: 📁 手動匯入 (${file.name})`;
-                
+                if (dataSourceTag && !isLearningStandards) dataSourceTag.textContent = `* 數據載入來源: 📁 手動匯入 (${file.name})`;
                 showLoading(true);
                 const reader = new FileReader();
-
                 if (file.name.endsWith('.csv')) {
-                    reader.onload = function(e) {
-                        parseCSV(e.target.result);
-                    };
+                    reader.onload = function(e) { parseCSV(e.target.result, isLearningStandards); };
                     reader.readAsText(file);
                 } else {
                     reader.onload = function(e) {
                         try {
                             const data = new Uint8Array(e.target.result);
                             const workbook = XLSX.read(data, { type: 'array' });
-                            const firstSheetName = workbook.SheetNames[0];
-                            const worksheet = workbook.Sheets[firstSheetName];
-                            const sheetRows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-                            parseExcelData(sheetRows);
+                            const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                            parseExcelData(XLSX.utils.sheet_to_json(worksheet, { header: 1 }), isLearningStandards);
                         } catch (err) {
-                            showLoading(false);
-                            showToast(`Excel 載入失敗: ${err.message}`, 'alert-circle', 'text-rose-400');
+                            showLoading(false); showToast(`Excel 載入失敗: ${err.message}`, 'alert-circle', 'text-rose-400');
                         }
                     };
                     reader.readAsArrayBuffer(file);
                 }
                 if (fileInput) fileInput.value = '';
+                if (importStdFile) importStdFile.value = '';
             }
 
-            if (btnAll) {
-                btnAll.addEventListener('click', () => {
-                    currentFilter = 'all';
-                    updateFilterButtons('all');
-                    checkCelebration();
-                    renderTable();
-                });
-            }
-
-            if (btnReplenishOnly) {
-                btnReplenishOnly.addEventListener('click', () => {
-                    currentFilter = 'replenish';
-                    updateFilterButtons('replenish');
-                    checkCelebration();
-                    renderTable();
-                });
-            }
-
-            if (btnPurchaseOnly) {
-                btnPurchaseOnly.addEventListener('click', () => {
-                    currentFilter = 'purchase';
-                    updateFilterButtons('purchase');
-                    checkCelebration();
-                    renderTable();
-                });
-            }
-
-            if (btnNoStdOnly) {
-                btnNoStdOnly.addEventListener('click', () => {
-                    currentFilter = 'no_std';
-                    updateFilterButtons('no_std');
-                    checkCelebration();
-                    renderTable();
-                });
-            }
-
-            if (searchInputEl) {
-                searchInputEl.addEventListener('input', () => {
-                    renderTable();
-                });
-            }
+            if (btnAll) btnAll.addEventListener('click', () => switchFilterToAll());
+            if (btnReplenishOnly) btnReplenishOnly.addEventListener('click', () => { currentFilter = 'replenish'; updateFilterButtons('replenish'); checkCelebration(); renderTable(); });
+            if (btnPurchaseOnly) btnPurchaseOnly.addEventListener('click', () => { currentFilter = 'purchase'; updateFilterButtons('purchase'); checkCelebration(); renderTable(); });
+            if (btnNoStdOnly) btnNoStdOnly.addEventListener('click', () => { currentFilter = 'no_std'; updateFilterButtons('no_std'); checkCelebration(); renderTable(); });
+            if (searchInputEl) searchInputEl.addEventListener('input', () => renderTable());
         });
     </script>
 </body>
